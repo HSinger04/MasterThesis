@@ -25,8 +25,8 @@ def get_raw_bodies_data(skes_path, ske_name, frames_drop_skes, frames_drop_logge
         - num_frames: the number of valid frames.
     """
     # TODO: Comment out probably bug causing stuff
-    #    if int(ske_name[1:4]) >= 18:
-    #        skes_path = '../nturgbd_raw/nturgb+d_skeletons120/'
+    if int(ske_name[1:4]) >= 18:
+        skes_path = '../nturgbd_raw/nturgb+d_skeletons120/'
     ske_file = osp.join(skes_path, ske_name + '.skeleton')
     assert osp.exists(ske_file), 'Error: Skeleton file %s not found' % ske_file
     # Read all data from .skeleton file into a list (in string format)
@@ -61,6 +61,7 @@ def get_raw_bodies_data(skes_path, ske_name, frames_drop_skes, frames_drop_logge
             for j in range(num_joints):
                 temp_str = str_data[current_line].strip('\r\n').split()
                 joints[b, j, :] = np.array(temp_str[:3], dtype=np.float32)
+                # TODO: What is "colors"? Also see variable "colors" above
                 colors[b, j, :] = np.array(temp_str[5:7], dtype=np.float32)
                 current_line += 1
 
@@ -143,16 +144,18 @@ if __name__ == '__main__':
     args = parser.parse_args()
     args_dict = vars(parser.parse_args())
 
+    # As the name implies, describes where the data will get saved.
     save_path = args_dict['save_path']
 
     skes_path = args_dict['skes_path']
-    # TODO: Replaced save_path with "./"
-    stat_path = osp.join("./", 'statistics')
+    # Basically there to identify where the skes_available_name.txt is. Can be thus hard-coded.
+    stat_path = osp.join(save_path, 'statistics')
 
     # TODO:
     if not osp.exists(osp.join(save_path, 'raw_data')):
         os.makedirs(osp.join(save_path, 'raw_data'))
 
+    # TODO: Look for 'nturgbd_raw_mini/statistics/skes_available_name.txt' and make sure it only mentions the files I need
     skes_name_file = osp.join(stat_path, 'skes_available_name.txt')
     save_data_pkl = osp.join(save_path, 'raw_data', 'raw_skes_data.pkl')
     frames_drop_pkl = osp.join(save_path, 'raw_data', 'frames_drop_skes.pkl')
@@ -160,6 +163,7 @@ if __name__ == '__main__':
     frames_drop_logger = logging.getLogger('frames_drop')
     frames_drop_logger.setLevel(logging.INFO)
     frames_drop_logger.addHandler(logging.FileHandler(osp.join(save_path, 'raw_data', 'frames_drop.log')))
+    # Keeps track of what frames to drop. No actual dropping happens here
     frames_drop_skes = dict()
 
     get_raw_skes_data()

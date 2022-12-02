@@ -5,8 +5,15 @@ import os.path as osp
 import numpy as np
 import pickle
 import logging
+import argparse
 
-root_path = './'
+parser = argparse.ArgumentParser()
+parser.add_argument('--root_path', help='./')
+
+args = parser.parse_args()
+args_dict = vars(parser.parse_args())
+
+root_path = args_dict['root_path']
 raw_data_file = osp.join(root_path, 'raw_data', 'raw_skes_data.pkl')
 save_path = osp.join(root_path, 'denoised_data')
 

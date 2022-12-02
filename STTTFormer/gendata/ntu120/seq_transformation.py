@@ -7,10 +7,20 @@ import pickle
 import logging
 #import h5py
 from sklearn.model_selection import train_test_split
+import argparse
 
 # TODO: HD-GCN uses seq_transform for normal NTU, not 120
 
-root_path = './'
+parser = argparse.ArgumentParser()
+parser.add_argument('--root_path', help='./')
+parser.add_argument('--save_path', help='./')
+
+args = parser.parse_args()
+args_dict = vars(parser.parse_args())
+
+root_path = args_dict['root_path']
+save_path = args_dict['save_path']
+
 stat_path = osp.join(root_path, 'statistics')
 setup_file = osp.join(stat_path, 'setup.txt')
 camera_file = osp.join(stat_path, 'camera.txt')
@@ -23,7 +33,7 @@ denoised_path = osp.join(root_path, 'denoised_data')
 raw_skes_joints_pkl = osp.join(denoised_path, 'raw_denoised_joints.pkl')
 frames_file = osp.join(denoised_path, 'frames_cnt.txt')
 
-save_path = './'
+
 
 
 if not osp.exists(save_path):
@@ -171,7 +181,7 @@ def split_dataset(skes_joints, label, performer, setup, evaluation, save_path):
     test_x = skes_joints[test_indices]
     test_y = one_hot_vector(test_labels)
 
-    save_name = 'NTU120_%s.npz' % evaluation
+    save_name = osp.join(save_path, 'NTU120_%s.npz') % evaluation
     np.savez(save_name, x_train=train_x, y_train=train_y, x_test=test_x, y_test=test_y)
 
     # # Save data into a .h5 file
