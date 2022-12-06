@@ -3,16 +3,19 @@
 import os
 import os.path as osp
 import numpy as np
+import cv2
 import pickle
 import logging
 import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--root_path', help='./')
+parser.add_argument('--make_video', default=False, type=bool)
 
 args = parser.parse_args()
 args_dict = vars(parser.parse_args())
 
+make_video = args_dict['make_video']
 root_path = args_dict['root_path']
 raw_data_file = osp.join(root_path, 'raw_data', 'raw_skes_data.pkl')
 save_path = osp.join(root_path, 'denoised_data')
@@ -27,6 +30,10 @@ if not osp.exists(rgb_ske_path):
 actors_info_dir = osp.join(save_path, 'actors_info')
 if not osp.exists(actors_info_dir):
     os.mkdir(actors_info_dir)
+
+video_path = osp.join(save_path, 'denoised_vids')
+if not osp.exists(video_path):
+    os.mkdir(video_path)
 
 missing_count = 0
 noise_len_thres = 11
@@ -79,6 +86,8 @@ def denoising_by_length(ske_name, bodies_data):
     """
     Denoising data based on the frame length for each bodyID.
     Filter out the bodyID which length is less or equal than the predefined threshold.
+    Probable motivation: If a body only showed up for a very short amount of frames, it's likely that the
+    body was just through a misdetection and not of an actual person
     TODO: Couldn't find any info on this
 
     """
@@ -99,13 +108,14 @@ def denoising_by_length(ske_name, bodies_data):
 
 def get_valid_frames_by_spread(points):
     """
-    Find the valid (or reasonable) frames (index) based on the spread of X and Y. Pre-proc from NTU paper
+    Find the valid (or reasonable) frames (index) based on the spread of X and Y. Pre-proc from NTU paper.
 
     points: joints or colors
     """
     num_frames = points.shape[0]
     valid_frames = []
     for i in range(num_frames):
+        # x and y are 25 dimensional
         x = points[i, :, 0]
         y = points[i, :, 1]
         if (x.max() - x.min()) <= noise_spr_thres1 * (y.max() - y.min()):  # 0.8
@@ -129,14 +139,17 @@ def denoising_by_spread(ske_name, bodies_data):
     for (bodyID, body_data) in new_bodies_data.items():
         if len(bodies_data) == 1:
             break
+        # e.g. (1950, 3) --> (78, 25, 3)
         valid_frames = get_valid_frames_by_spread(body_data['joints'].reshape(-1, 25, 3))
         num_frames = len(body_data['interval'])
         num_noise = num_frames - len(valid_frames)
         if num_noise == 0:
             continue
 
+        # Only get here if there are invalid frames
         ratio = num_noise / float(num_frames)
         motion = body_data['motion']
+        # If too many noisy frames, delete the body entirely
         if ratio >= noise_spr_thres2:  # 0.69754
             del bodies_data[bodyID]
             denoised_by_spr = True
@@ -144,6 +157,8 @@ def denoising_by_spread(ske_name, bodies_data):
             noise_spr_logger.info('%s\t%s\t%.6f\t%.6f' % (ske_name, bodyID, motion, ratio))
         else:  # Update motion
             joints = body_data['joints'].reshape(-1, 25, 3)[valid_frames]
+            # Recalculate motion based on the valid frames. Take the motion according to the minimum between
+            # old and new motion data
             body_data['motion'] = min(motion, np.sum(np.var(joints.reshape(-1, 3), axis=0)))
             noise_info += '%s: motion %.6f -> %.6f\n' % (bodyID, motion, body_data['motion'])
             # TODO: Consider removing noisy frames for each bodyID
@@ -198,7 +213,7 @@ def denoising_bodies_data(bodies_data):
     # Step 2: Denoising based on spread.
     bodies_data, noise_info_spr, denoised_by_spr = denoising_by_spread(ske_name, bodies_data)
 
-    if len(bodies_data) == 1:
+    if len(bodies_data) == 1: # only has one bodyID left after step 2
         return bodies_data.items(), noise_info_len + noise_info_spr
 
     bodies_motion = dict()  # get body motion
@@ -236,6 +251,7 @@ def get_one_actor_points(body_data, num_frames):
     """
     joints = np.zeros((num_frames, 75), dtype=np.float32)
     colors = np.ones((num_frames, 1, 25, 2), dtype=np.float32) * np.nan
+    # start = first valid frame, end = last valid frame
     start, end = body_data['interval'][0], body_data['interval'][-1]
     joints[start:end + 1] = body_data['joints'].reshape(-1, 75)
     colors[start:end + 1, 0] = body_data['colors']
@@ -245,7 +261,7 @@ def get_one_actor_points(body_data, num_frames):
 
 def remove_missing_frames(ske_name, joints, colors):
     """
-    Cut off missing frames which all joints positions are 0s
+    Cut off missing frames which all joints positions OF ALL ACTORS are 0s
 
     For the sequence with 2 actors' data, also record the number of missing frames for
     actor1 and actor2, respectively (for debug).
@@ -261,6 +277,7 @@ def remove_missing_frames(ske_name, joints, colors):
 
         start = 1 if 0 in missing_indices_1 else 0
         end = 1 if num_frames - 1 in missing_indices_1 else 0
+        # Note down info about missing frames
         if max(cnt1, cnt2) > 0:
             if cnt1 > cnt2:
                 info = '{}\t{:^10d}\t{:^6d}\t{:^6d}\t{:^5d}\t{:^3d}'.format(ske_name, num_frames,
@@ -273,6 +290,8 @@ def remove_missing_frames(ske_name, joints, colors):
     # Find valid frame indices that the data is not missing or lost
     # For two-subjects action, this means both data of actor1 and actor2 is missing.
     valid_indices = np.where(joints.sum(axis=1) != 0)[0]  # 0-based index
+    # Compare missing_indices to missing_indices_1 and 2: Same formula, except that for the former, we consider
+    # joints of both actors while for the latter 2, we look at the joints of each actor individually
     missing_indices = np.where(joints.sum(axis=1) == 0)[0]
     num_missing = len(missing_indices)
 
@@ -287,6 +306,12 @@ def remove_missing_frames(ske_name, joints, colors):
 
 
 def get_bodies_info(bodies_data):
+    """
+
+    :param bodies_data: A dictionary containing ske_name, the joint, color, interval and motion info of bodies and
+    the number of frames
+    :return: A string describing the bodyIDs, Intervals and Motions of the actors
+    """
     bodies_info = '{:^17}\t{}\t{:^8}\n'.format('bodyID', 'Interval', 'Motion')
     for (bodyID, body_data) in bodies_data.items():
         start, end = body_data['interval'][0], body_data['interval'][-1]
@@ -324,6 +349,7 @@ def get_two_actors_points(bodies_data):
         if label >= 50:  # DEBUG: Denoising failed for two-subjects action
             fail_logger_2.info(ske_name)
 
+        # Treat this as if it's only one actor / the 2nd actor was just an artifact due to noise
         bodyID, body_data = bodies_data[0]
         joints, colors = get_one_actor_points(body_data, num_frames)
         bodies_info += 'Main actor: %s' % bodyID
@@ -336,6 +362,7 @@ def get_two_actors_points(bodies_data):
 
         bodyID, actor1 = bodies_data[0]  # the 1st actor with largest motion
         start1, end1 = actor1['interval'][0], actor1['interval'][-1]
+        # Fill joint and colors of first actor
         joints[start1:end1 + 1, :75] = actor1['joints'].reshape(-1, 75)
         colors[start1:end1 + 1, 0] = actor1['colors']
         actor1_info = '{:^17}\t{}\t{:^8}\n'.format('Actor1', 'Interval', 'Motion') + \
@@ -345,14 +372,24 @@ def get_two_actors_points(bodies_data):
         actor2_info = '{:^17}\t{}\t{:^8}\n'.format('Actor2', 'Interval', 'Motion')
         start2, end2 = [0, 0]  # initial interval for actor2 (virtual)
 
+        # TODO: Understand. Would have to watch a video with 3 bodies
         while len(bodies_data) > 0:
             bodyID, actor = bodies_data[0]
             start, end = actor['interval'][0], actor['interval'][-1]
+            # TODO: I am not understanding how this formula relates to showing there is no overlap. However, if there is
+            # overlap, one might want to say that it's action of the other actor as there can be at most two
+            # and the other one can't appear twice in the same frames.
+            # TODO: Another question I have: Why can we say that it necessarily belongs to the first actor? What if it's a case
+            # that it does not overlap with neither first nor second actor?
             if min(end1, end) - max(start1, start) <= 0:  # no overlap with actor1
+                # Add joint and colors of first actor
                 joints[start:end + 1, :75] = actor['joints'].reshape(-1, 75)
                 colors[start:end + 1, 0] = actor['colors']
                 actor1_info += '{}\t{:^8}\t{:f}\n'.format(bodyID, str([start, end]), actor['motion'])
                 # Update the interval of actor1
+                # TODO: What's the purpose of this? My assumption: Actors who appear stay for the whole duration
+                # of the video from start to finish --> since we assume that the frames given by [start, end] are part
+                # of actor 1, we expand their screentime.
                 start1 = min(start, start1)
                 end1 = max(end, end1)
             elif min(end2, end) - max(start2, start) <= 0:  # no overlap with actor2
@@ -371,6 +408,24 @@ def get_two_actors_points(bodies_data):
 
     return joints, colors
 
+
+def save_video(ske_name, colors):
+    """
+
+    :param ske_name:
+    :param colors: (num_frames, num_bodies, num_joints=25, color_coord=2)
+    :return:
+    """
+    size = 1920, 1080
+    fps = 31
+    out = cv2.VideoWriter(osp.join(video_path, ske_name + '.mp4'), cv2.VideoWriter_fourcc(*'mp4v'), fps, (size[1], size[0]), False)
+    for frame in colors:
+        data = np.zeros(size, dtype='uint8')
+        coords = frame.reshape(-1, 2).astype(int)
+        # TODO: Indexing needs to be fixed
+        data[coords] = 256
+        out.write(data)
+    out.release()
 
 def get_raw_denoised_data():
     """
@@ -407,14 +462,18 @@ def get_raw_denoised_data():
 
         if num_bodies == 1:  # only 1 actor
             num_frames = bodies_data['num_frames']
+            # bodies_data['data'] is the bodies data (i.e. a mapping from bodies to their joints, colors and interval)
             body_data = list(bodies_data['data'].values())[0]
             joints, colors = get_one_actor_points(body_data, num_frames)
         else:  # more than 1 actor, select two main actors
             joints, colors = get_two_actors_points(bodies_data)
             # Remove missing frames
+            # TODO: Why is remove_missing_frames only applied to num_bodies == 1?
             joints, colors = remove_missing_frames(ske_name, joints, colors)
             num_frames = joints.shape[0]  # Update
             # Visualize selected actors' skeletons on RGB videos.
+            if make_video:
+                save_video(ske_name, colors)
 
         raw_denoised_joints.append(joints)
         raw_denoised_colors.append(colors)

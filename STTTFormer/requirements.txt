@@ -5,3 +5,4 @@ tensorboardX
 matplotlib
 pyyaml
 tqdm
+opencv-python

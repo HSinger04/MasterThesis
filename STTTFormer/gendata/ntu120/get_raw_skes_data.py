@@ -24,7 +24,6 @@ def get_raw_bodies_data(skes_path, ske_name, frames_drop_skes, frames_drop_logge
         - data: a dict which stores raw data of each body.
         - num_frames: the number of valid frames.
     """
-    # TODO: Comment out probably bug causing stuff
     if int(ske_name[1:4]) >= 18:
         skes_path = '../nturgbd_raw/nturgb+d_skeletons120/'
     ske_file = osp.join(skes_path, ske_name + '.skeleton')
@@ -34,13 +33,16 @@ def get_raw_bodies_data(skes_path, ske_name, frames_drop_skes, frames_drop_logge
     with open(ske_file, 'r') as fr:
         str_data = fr.readlines()
 
+    # The very first value of the .skeleton file. E.g. "103"
     num_frames = int(str_data[0].strip('\r\n'))
     frames_drop = []
     bodies_data = dict()
+    # E.g. 0 for the first dude,
     valid_frames = -1  # 0-based index
     current_line = 1
 
     for f in range(num_frames):
+        # Starts with the 2nd line in .skeleton file e.g. "1". The next one would be line 30's "1"
         num_bodies = int(str_data[current_line].strip('\r\n'))
         current_line += 1
 
@@ -53,15 +55,19 @@ def get_raw_bodies_data(skes_path, ske_name, frames_drop_skes, frames_drop_logge
         colors = np.zeros((num_bodies, 25, 2), dtype=np.float32)
 
         for b in range(num_bodies):
+            # Read bodyID from one line after the previous. E.g. '72057594037931101'
             bodyID = str_data[current_line].strip('\r\n').split()[0]
             current_line += 1
+            # Read from one line after the previous. E.g. '25'
             num_joints = int(str_data[current_line].strip('\r\n'))  # 25 joints
             current_line += 1
 
             for j in range(num_joints):
                 temp_str = str_data[current_line].strip('\r\n').split()
+                # The first three values from next line. E.g. 0.2181153 0.1725972 3.785547
                 joints[b, j, :] = np.array(temp_str[:3], dtype=np.float32)
                 # TODO: What is "colors"? Also see variable "colors" above
+                # The 6th and 7th values from same line. E.g. 1036.233 519.1677
                 colors[b, j, :] = np.array(temp_str[5:7], dtype=np.float32)
                 current_line += 1
 
@@ -73,6 +79,7 @@ def get_raw_bodies_data(skes_path, ske_name, frames_drop_skes, frames_drop_logge
             else:  # Update an already existed body's data
                 body_data = bodies_data[bodyID]
                 # Stack each body's data of each frame along the frame order
+                # body_data['joints'] is of dimension # (25 * how many times the body ID has occured, 3 dimensions of joint locations)
                 body_data['joints'] = np.vstack((body_data['joints'], joints[b]))
                 body_data['colors'] = np.vstack((body_data['colors'], colors[b, np.newaxis]))
                 pre_frame_idx = body_data['interval'][-1]
@@ -91,6 +98,8 @@ def get_raw_bodies_data(skes_path, ske_name, frames_drop_skes, frames_drop_logge
     # Calculate motion (only for the sequence with 2 or more bodyIDs)
     if len(bodies_data) > 1:
         for body_data in bodies_data.values():
+            # First, calculate the variance (from e.g. (1950, 3), we get output of dim (3,)) and then the sum of it to get
+            # a scalar value. Seems to be used to determine primary and secondary actor (see doc string of get_raw_denoised_data)
             body_data['motion'] = np.sum(np.var(body_data['joints'], axis=0))
 
     return {'name': ske_name, 'data': bodies_data, 'num_frames': num_frames - num_frames_drop}
@@ -151,11 +160,9 @@ if __name__ == '__main__':
     # Basically there to identify where the skes_available_name.txt is. Can be thus hard-coded.
     stat_path = osp.join(save_path, 'statistics')
 
-    # TODO:
     if not osp.exists(osp.join(save_path, 'raw_data')):
         os.makedirs(osp.join(save_path, 'raw_data'))
 
-    # TODO: Look for 'nturgbd_raw_mini/statistics/skes_available_name.txt' and make sure it only mentions the files I need
     skes_name_file = osp.join(stat_path, 'skes_available_name.txt')
     save_data_pkl = osp.join(save_path, 'raw_data', 'raw_skes_data.pkl')
     frames_drop_pkl = osp.join(save_path, 'raw_data', 'frames_drop_skes.pkl')
