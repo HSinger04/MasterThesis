@@ -253,6 +253,7 @@ def get_one_actor_points(body_data, num_frames):
     colors = np.ones((num_frames, 1, 25, 2), dtype=np.float32) * np.nan
     # start = first valid frame, end = last valid frame
     start, end = body_data['interval'][0], body_data['interval'][-1]
+    # [0:3] is x, y, z (not sure about order of coordinates) of the first joint
     joints[start:end + 1] = body_data['joints'].reshape(-1, 75)
     colors[start:end + 1, 0] = body_data['colors']
 
@@ -416,16 +417,23 @@ def save_video(ske_name, colors):
     :param colors: (num_frames, num_bodies, num_joints=25, color_coord=2)
     :return:
     """
-    size = 1920, 1080
-    fps = 31
-    out = cv2.VideoWriter(osp.join(video_path, ske_name + '.mp4'), cv2.VideoWriter_fourcc(*'mp4v'), fps, (size[1], size[0]), False)
-    for frame in colors:
-        data = np.zeros(size, dtype='uint8')
-        coords = frame.reshape(-1, 2).astype(int)
-        # TODO: Indexing needs to be fixed
-        data[coords] = 256
-        out.write(data)
-    out.release()
+    pass
+    # size = 1920, 1080
+    # fps = 31
+    # out = cv2.VideoWriter(osp.join(video_path, ske_name + '.mp4'), cv2.VideoWriter_fourcc(*'mp4v'), fps, (size[1], size[0]), False)
+    # # TODO: debug
+    # for i, frame in enumerate(colors):
+    #     data = np.zeros(size, dtype='uint8')
+    #     data.fill(255)
+    #     coords = frame.reshape(-1, 2).astype(int)
+    #     coords_2 = coords[:, 0] * size[1] + coords[:, 1]
+    #     # TODO: Indexing needs to be fixed
+    #     try:
+    #         np.put(data, coords_2, 0)
+    #     except IndexError:
+    #         continue
+    #     out.write(data)
+    # out.release()
 
 def get_raw_denoised_data():
     """

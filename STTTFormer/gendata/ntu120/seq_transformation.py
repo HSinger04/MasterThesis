@@ -40,18 +40,18 @@ if not osp.exists(save_path):
     os.mkdir(save_path)
 
 
-def remove_nan_frames(ske_name, ske_joints, nan_logger):
-    num_frames = ske_joints.shape[0]
-    valid_frames = []
-
-    for f in range(num_frames):
-        if not np.any(np.isnan(ske_joints[f])):
-            valid_frames.append(f)
-        else:
-            nan_indices = np.where(np.isnan(ske_joints[f]))[0]
-            nan_logger.info('{}\t{:^5}\t{}'.format(ske_name, f + 1, nan_indices))
-
-    return ske_joints[valid_frames]
+# def remove_nan_frames(ske_name, ske_joints, nan_logger):
+#     num_frames = ske_joints.shape[0]
+#     valid_frames = []
+#
+#     for f in range(num_frames):
+#         if not np.any(np.isnan(ske_joints[f])):
+#             valid_frames.append(f)
+#         else:
+#             nan_indices = np.where(np.isnan(ske_joints[f]))[0]
+#             nan_logger.info('{}\t{:^5}\t{}'.format(ske_name, f + 1, nan_indices))
+#
+#     return ske_joints[valid_frames]
 
 def seq_translation(skes_joints):
     for idx, ske_joints in enumerate(skes_joints):
@@ -72,11 +72,15 @@ def seq_translation(skes_joints):
         origin = np.copy(ske_joints[i, 3:6])  # new origin: joint-2
 
         for f in range(num_frames):
+            # Subtract origin such that it gets "centered" around the origin
             if num_bodies == 1:
                 ske_joints[f] -= np.tile(origin, 25)
             else:  # for 2 actors
                 ske_joints[f] -= np.tile(origin, 50)
 
+        # Set the values of missing joint to 0 again after "centering"
+        # TODO: A joint value of 0 is overloaded with representing the origin joint as well as missing joints.
+        # TODO: But maybe that's not a problem, as 0 as input does not get propagate through the network? (depends on network)
         if (num_bodies == 2) and (cnt1 > 0):
             ske_joints[missing_frames_1, :75] = np.zeros((cnt1, 75), dtype=np.float32)
 
@@ -88,42 +92,43 @@ def seq_translation(skes_joints):
     return skes_joints
 
 
-def frame_translation(skes_joints, skes_name, frames_cnt):
-    nan_logger = logging.getLogger('nan_skes')
-    nan_logger.setLevel(logging.INFO)
-    nan_logger.addHandler(logging.FileHandler("./nan_frames.log"))
-    nan_logger.info('{}\t{}\t{}'.format('Skeleton', 'Frame', 'Joints'))
-
-    for idx, ske_joints in enumerate(skes_joints):
-        num_frames = ske_joints.shape[0]
-        # Calculate the distance between spine base (joint-1) and spine (joint-21)
-        j1 = ske_joints[:, 0:3]
-        j21 = ske_joints[:, 60:63]
-        dist = np.sqrt(((j1 - j21) ** 2).sum(axis=1))
-
-        for f in range(num_frames):
-            origin = ske_joints[f, 3:6]  # new origin: middle of the spine (joint-2)
-            if (ske_joints[f, 75:] == 0).all():
-                ske_joints[f, :75] = (ske_joints[f, :75] - np.tile(origin, 25)) / \
-                                      dist[f] + np.tile(origin, 25)
-            else:
-                ske_joints[f] = (ske_joints[f] - np.tile(origin, 50)) / \
-                                 dist[f] + np.tile(origin, 50)
-
-        ske_name = skes_name[idx]
-        ske_joints = remove_nan_frames(ske_name, ske_joints, nan_logger)
-        frames_cnt[idx] = num_frames  # update valid number of frames
-        skes_joints[idx] = ske_joints
-
-    return skes_joints, frames_cnt
+# def frame_translation(skes_joints, skes_name, frames_cnt):
+#     nan_logger = logging.getLogger('nan_skes')
+#     nan_logger.setLevel(logging.INFO)
+#     nan_logger.addHandler(logging.FileHandler("./nan_frames.log"))
+#     nan_logger.info('{}\t{}\t{}'.format('Skeleton', 'Frame', 'Joints'))
+#
+#     for idx, ske_joints in enumerate(skes_joints):
+#         num_frames = ske_joints.shape[0]
+#         # Calculate the distance between spine base (joint-1) and spine (joint-21)
+#         j1 = ske_joints[:, 0:3]
+#         j21 = ske_joints[:, 60:63]
+#         dist = np.sqrt(((j1 - j21) ** 2).sum(axis=1))
+#
+#         for f in range(num_frames):
+#             origin = ske_joints[f, 3:6]  # new origin: middle of the spine (joint-2)
+#             if (ske_joints[f, 75:] == 0).all():
+#                 ske_joints[f, :75] = (ske_joints[f, :75] - np.tile(origin, 25)) / \
+#                                       dist[f] + np.tile(origin, 25)
+#             else:
+#                 ske_joints[f] = (ske_joints[f] - np.tile(origin, 50)) / \
+#                                  dist[f] + np.tile(origin, 50)
+#
+#         ske_name = skes_name[idx]
+#         ske_joints = remove_nan_frames(ske_name, ske_joints, nan_logger)
+#         frames_cnt[idx] = num_frames  # update valid number of frames
+#         skes_joints[idx] = ske_joints
+#
+#     return skes_joints, frames_cnt
 
 
 def align_frames(skes_joints, frames_cnt):
     """
-    Align all sequences with the same frame length.
+    Align all sequences with the same frame length. Pad all skes_joints with zero frames to get maximum number of frames.
 
     """
     num_skes = len(skes_joints)
+    # TODO: Requires global info
     max_num_frames = frames_cnt.max()  # 300
     aligned_skes_joints = np.zeros((num_skes, max_num_frames, 150), dtype=np.float32)
 
@@ -132,6 +137,9 @@ def align_frames(skes_joints, frames_cnt):
         num_bodies = 1 if ske_joints.shape[1] == 75 else 2
         if num_bodies == 1:
             # TODO: Diff to HD-GCN: Why do we stack the ske_joints twice instead of np.zeros_like for the 2nd?
+            # TODO: The second option makes much more sense. I suspect a bug. Otherwise, can also be used as
+            # TODO: training "both" networks to learn that particular form of action instead of the "2nd" network
+            # TODO: not learning anything
             aligned_skes_joints[idx, :num_frames] = np.hstack((ske_joints, ske_joints))
             # aligned_skes_joints[idx, :num_frames] = np.hstack((ske_joints, np.zeros_like(ske_joints)))
         else:
