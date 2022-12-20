@@ -3,25 +3,17 @@
 import os
 import os.path as osp
 import numpy as np
-import pickle
+import pickle5 as pickle
 import logging
-#import h5py
+import h5py
 from sklearn.model_selection import train_test_split
 import argparse
 
 # TODO: HD-GCN uses seq_transform for normal NTU, not 120
+root_path = "./"
+save_path = "./"
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--root_path', help='./')
-parser.add_argument('--save_path', help='./')
-
-args = parser.parse_args()
-args_dict = vars(parser.parse_args())
-
-root_path = args_dict['root_path']
-save_path = args_dict['save_path']
-
-stat_path = osp.join(root_path, 'statistics')
+stat_path = osp.join('/kaggle/input/ntupreseqstatistics')
 setup_file = osp.join(stat_path, 'setup.txt')
 camera_file = osp.join(stat_path, 'camera.txt')
 performer_file = osp.join(stat_path, 'performer.txt')
@@ -29,12 +21,8 @@ replication_file = osp.join(stat_path, 'replication.txt')
 label_file = osp.join(stat_path, 'label.txt')
 skes_name_file = osp.join(stat_path, 'skes_available_name.txt')
 
-denoised_path = osp.join(root_path, 'denoised_data')
-raw_skes_joints_pkl = osp.join(denoised_path, 'raw_denoised_joints.pkl')
-frames_file = osp.join(denoised_path, 'frames_cnt.txt')
-
-
-
+raw_skes_joints_pkl = '/kaggle/input/NTU-Pre-Seq/raw_denoised_joints.pkl'
+frames_file = osp.join('/kaggle/input/ntupreseq/frames_cnt.txt')
 
 if not osp.exists(save_path):
     os.mkdir(save_path)
@@ -122,14 +110,14 @@ def seq_translation(skes_joints):
 #     return skes_joints, frames_cnt
 
 
-def align_frames(skes_joints, frames_cnt):
+def align_frames(skes_joints):
     """
     Align all sequences with the same frame length. Pad all skes_joints with zero frames to get maximum number of frames.
 
     """
     num_skes = len(skes_joints)
     # TODO: Requires global info
-    max_num_frames = frames_cnt.max()  # 300
+    max_num_frames = max_frames_cnt  # 300
     aligned_skes_joints = np.zeros((num_skes, max_num_frames, 150), dtype=np.float32)
 
     for idx, ske_joints in enumerate(skes_joints):
@@ -174,8 +162,8 @@ def split_train_val(train_indices, method='sklearn', ratio=0.05):
         return train_indices, val_indices
 
 
-def split_dataset(skes_joints, label, performer, setup, evaluation, save_path):
-    train_indices, test_indices = get_indices(performer, setup, evaluation)
+def split_dataset(skes_joints, label, performer, setup, evaluation, save_path, data_format):
+    train_indices, test_indices, sample_indices = get_indices(performer, setup, label, evaluation)
     # m = 'sklearn'  # 'sklearn' or 'numpy'
     # Select validation set from training set
     # train_indices, val_indices = split_train_val(train_indices, m)
@@ -189,30 +177,46 @@ def split_dataset(skes_joints, label, performer, setup, evaluation, save_path):
     test_x = skes_joints[test_indices]
     test_y = one_hot_vector(test_labels)
 
-    save_name = osp.join(save_path, 'NTU120_%s.npz') % evaluation
-    np.savez(save_name, x_train=train_x, y_train=train_y, x_test=test_x, y_test=test_y)
+    print("bla")
 
-    # # Save data into a .h5 file
-    # h5file = h5py.File(osp.join(save_path, 'NTU_%s.h5' % (evaluation)), 'w')
-    # # Training set
-    # h5file.create_dataset('x', data=skes_joints[train_indices])
-    # train_one_hot_labels = one_hot_vector(train_labels)
-    # h5file.create_dataset('y', data=train_one_hot_labels)
-    # # Validation set
-    # h5file.create_dataset('valid_x', data=skes_joints[val_indices])
-    # val_one_hot_labels = one_hot_vector(val_labels)
-    # h5file.create_dataset('valid_y', data=val_one_hot_labels)
-    # # Test set
-    # h5file.create_dataset('test_x', data=skes_joints[test_indices])
-    # test_one_hot_labels = one_hot_vector(test_labels)
-    # h5file.create_dataset('test_y', data=test_one_hot_labels)
+    if len(sample_indices):
+        sample_labels = label[sample_indices]
+        sample_x = skes_joints[sample_indices]
+        sample_y = one_hot_vector(sample_labels)
 
-    # h5file.close()
+    if data_format == 'np':
+        save_name = osp.join(save_path, 'NTU120_%s.npz') % evaluation
+
+        if len(sample_indices):
+            np.savez(save_name, x_train=train_x, y_train=train_y, x_test=test_x, y_test=test_y,
+                     x_sample=sample_x, y_sample=sample_y)
+        else:
+            np.savez(save_name, x_train=train_x, y_train=train_y, x_test=test_x, y_test=test_y)
+
+    elif data_format == 'h5':
+        # Save data into a .h5 file
+        h5file = h5py.File(osp.join(save_path, 'NTU_%s.h5' % (evaluation)), 'w')
+        # Training set
+        h5file.create_dataset('x', data=train_x)
+        h5file.create_dataset('y', data=train_y)
+        # Test set
+        h5file.create_dataset('test_x', data=test_x)
+        h5file.create_dataset('test_y', data=test_y)
+        # Sample set
+        if len(sample_indices):
+            h5file.create_dataset('sample_x', data=sample_x)
+            h5file.create_dataset('sample_y', data=sample_y)
+
+        h5file.close()
+
+    else:
+        ValueError('Unsupported save data format.')
 
 
-def get_indices(performer, setup, evaluation='XSub'):
+def get_indices(performer, setup, label, evaluation='XSub'):
     test_indices = np.empty(0)
     train_indices = np.empty(0)
+    sample_indices = np.empty(0)
 
     if evaluation == 'XSub':  # Cross Subject (Subject IDs)
         train_ids = [1, 2, 4, 5, 8, 9, 13, 14, 15, 16, 17, 18, 19, 25, 27, 28,
@@ -224,44 +228,83 @@ def get_indices(performer, setup, evaluation='XSub'):
         # Get indices of test data
         for idx in test_ids:
             temp = np.where(performer == idx)[0]  # 0-based index
-            test_indices = np.hstack((test_indices, temp)).astype(np.int)
+            test_indices = np.hstack((test_indices, temp)).astype(int)
 
         # Get indices of training data
         for train_id in train_ids:
             temp = np.where(performer == train_id)[0]  # 0-based index
-            train_indices = np.hstack((train_indices, temp)).astype(np.int)
-    else:  # Cross Setup (Setup IDs)
+            train_indices = np.hstack((train_indices, temp)).astype(int)
+    elif evaluation == 'XSet':  # Cross Setup (Setup IDs)
         train_ids = [i for i in range(1, 33) if i % 2 == 0]  # Even setup
         test_ids = [i for i in range(1, 33) if i % 2 == 1]  # Odd setup
 
         # Get indices of test data
         for test_id in test_ids:
             temp = np.where(setup == test_id)[0]  # 0-based index
-            test_indices = np.hstack((test_indices, temp)).astype(np.int)
+            test_indices = np.hstack((test_indices, temp)).astype(int)
 
         # Get indices of training data
         for train_id in train_ids:
             temp = np.where(setup == train_id)[0]  # 0-based index
-            train_indices = np.hstack((train_indices, temp)).astype(np.int)
+            train_indices = np.hstack((train_indices, temp)).astype(int)
 
-    return train_indices, test_indices
+    elif evaluation == 'one_shot':
+
+        test_ids = [1, 7, 13, 19, 25, 31, 37, 43, 49, 55, 61, 67, 73, 79, 85, 91, 97, 103, 109, 115]
+        test_ids = [test_id - 1 for test_id in test_ids]
+
+        skes_name = np.loadtxt(skes_name_file, dtype=str)
+        sample_names = ['S001C003P008R001A001', 'S001C003P008R001A007', 'S001C003P008R001A013', 'S001C003P008R001A019',
+                        'S001C003P008R001A025', 'S001C003P008R001A031', 'S001C003P008R001A037', 'S001C003P008R001A043',
+                        'S001C003P008R001A049', 'S001C003P008R001A055', 'S018C003P008R001A061', 'S018C003P008R001A067',
+                        'S018C003P008R001A073', 'S018C003P008R001A079', 'S018C003P008R001A085', 'S018C003P008R001A091',
+                        'S018C003P008R001A097', 'S018C003P008R001A103', 'S018C003P008R001A109', 'S018C003P008R001A115']
+
+        train_ids = list(set([i for i in range(120)]) - set(test_ids))
+
+        # Get indices of sample data
+        for sample_id in sample_names:
+            temp = np.where(sample_id == skes_name)[0]
+            sample_indices = np.hstack((sample_indices, temp)).astype(int)
+
+        # Get indices of test data + sample data
+        for test_id in test_ids:
+            temp = np.where(label == test_id)[0]  # 0-based index
+            test_indices = np.hstack((test_indices, temp)).astype(int)
+
+        # Get actual indices of test data
+        test_indices = np.array(list(set(test_indices) - set(sample_indices))).astype(int)
+        test_indices.sort()
+
+        # Get indices of train data
+        for train_id in train_ids:
+            temp = np.where(label == train_id)[0]  # 0-based index
+            train_indices = np.hstack((train_indices, temp)).astype(int)
+
+    else:
+        raise ValueError('Unsupported evaluation protocol.')
+
+    return train_indices, test_indices, sample_indices
 
 
 if __name__ == '__main__':
-    setup = np.loadtxt(setup_file, dtype=np.int)  # camera id: 1~32
-    performer = np.loadtxt(performer_file, dtype=np.int)  # subject id: 1~106
-    label = np.loadtxt(label_file, dtype=np.int) - 1  # action label: 0~119
-
-    frames_cnt = np.loadtxt(frames_file, dtype=np.int)  # frames_cnt
-    skes_name = np.loadtxt(skes_name_file, dtype=np.string_)
-
     with open(raw_skes_joints_pkl, 'rb') as fr:
         skes_joints = pickle.load(fr)  # a list
 
+    frames_cnt = np.loadtxt(frames_file, dtype=int)  # frames_cnt
+    max_frames_cnt = frames_cnt.max()
+    del frames_cnt
+
     skes_joints = seq_translation(skes_joints)
 
-    skes_joints = align_frames(skes_joints, frames_cnt)  # aligned to the same frame length
+    skes_joints = align_frames(skes_joints)  # aligned to the same frame length
 
-    evaluations = ['XSet', 'XSub']
+    # TODO: Maybe load later for memory?
+    setup = np.loadtxt(setup_file, dtype=int)  # camera id: 1~32
+    performer = np.loadtxt(performer_file, dtype=int)  # subject id: 1~106
+    label = np.loadtxt(label_file, dtype=int) - 1  # action label: 0~119
+
+    # evaluations = ['XSet', 'XSub']
+    evaluations = ['one_shot']
     for evaluation in evaluations:
-        split_dataset(skes_joints, label, performer, setup, evaluation, save_path)
+        split_dataset(skes_joints, label, performer, setup, evaluation, save_path, data_format='h5')
