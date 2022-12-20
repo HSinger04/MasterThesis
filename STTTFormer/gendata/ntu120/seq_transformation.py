@@ -3,26 +3,49 @@
 import os
 import os.path as osp
 import numpy as np
-import pickle5 as pickle
+#import pickle5 as pickle
 import logging
-import h5py
+#import h5py
 from sklearn.model_selection import train_test_split
 import argparse
+
+KAGGLE = False
 
 # TODO: HD-GCN uses seq_transform for normal NTU, not 120
 root_path = "./"
 save_path = "./"
-
 stat_path = osp.join('/kaggle/input/ntupreseqstatistics')
+
+raw_denoised_joints_pkl = '/kaggle/input/NTU-Pre-Seq/raw_denoised_joints.pkl'
+frames_file = osp.join('/kaggle/input/ntupreseq/frames_cnt.txt')
+
+data_format = "np"
+
+if not KAGGLE:
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--root_path', help='./')
+    parser.add_argument('--save_path', help='./')
+    parser.add_argument('--stat_path', help='./statistics')
+    parser.add_argument('--raw_denoised_joints.pkl', help='./denoised_data/raw_denoised_joints.pkl')
+    parser.add_argument('--frames_file', help='./denoised_data/frames_cnt.txt')
+    parser.add_argument('--data_format', help='Either h5 or np')
+
+    args = parser.parse_args()
+    args_dict = vars(parser.parse_args())
+
+    root_path = args_dict['root_path']
+    save_path = args_dict['save_path']
+    stat_path = args_dict['stat_path']
+    raw_denoised_joints_pkl = args_dict['raw_denoised_joints.pkl']
+    frames_file = args_dict['frames_file']
+    data_format = args_dict['data_format']
+
 setup_file = osp.join(stat_path, 'setup.txt')
 camera_file = osp.join(stat_path, 'camera.txt')
 performer_file = osp.join(stat_path, 'performer.txt')
 replication_file = osp.join(stat_path, 'replication.txt')
 label_file = osp.join(stat_path, 'label.txt')
 skes_name_file = osp.join(stat_path, 'skes_available_name.txt')
-
-raw_skes_joints_pkl = '/kaggle/input/NTU-Pre-Seq/raw_denoised_joints.pkl'
-frames_file = osp.join('/kaggle/input/ntupreseq/frames_cnt.txt')
 
 if not osp.exists(save_path):
     os.mkdir(save_path)
@@ -288,7 +311,15 @@ def get_indices(performer, setup, label, evaluation='XSub'):
 
 
 if __name__ == '__main__':
-    with open(raw_skes_joints_pkl, 'rb') as fr:
+    # setup = np.loadtxt(setup_file, dtype=int)  # camera id: 1~32
+    # performer = np.loadtxt(performer_file, dtype=int)  # subject id: 1~106
+    # label = np.loadtxt(label_file, dtype=int) - 1  # action label: 0~119
+    #
+    # get_indices(performer, setup, label, evaluation='one_shot')
+    #
+    # f = np.load('NTU_one_shot_npy/y_train.npy', mmap_mode='r')
+
+    with open(raw_denoised_joints_pkl, 'rb') as fr:
         skes_joints = pickle.load(fr)  # a list
 
     frames_cnt = np.loadtxt(frames_file, dtype=int)  # frames_cnt
@@ -307,4 +338,4 @@ if __name__ == '__main__':
     # evaluations = ['XSet', 'XSub']
     evaluations = ['one_shot']
     for evaluation in evaluations:
-        split_dataset(skes_joints, label, performer, setup, evaluation, save_path, data_format='h5')
+        split_dataset(skes_joints, label, performer, setup, evaluation, save_path, data_format=data_format)
