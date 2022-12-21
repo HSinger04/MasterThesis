@@ -1,15 +1,17 @@
+KAGGLE = False
+
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 import os
 import os.path as osp
 import numpy as np
-#import pickle5 as pickle
+import pickle5 as pickle
 import logging
-#import h5py
+import h5py
 from sklearn.model_selection import train_test_split
 import argparse
 
-KAGGLE = False
+
 
 # TODO: HD-GCN uses seq_transform for normal NTU, not 120
 root_path = "./"
@@ -22,6 +24,8 @@ frames_file = osp.join('/kaggle/input/ntupreseq/frames_cnt.txt')
 data_format = "np"
 
 if not KAGGLE:
+    import pickle as pickle
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--root_path', help='./')
     parser.add_argument('--save_path', help='./')

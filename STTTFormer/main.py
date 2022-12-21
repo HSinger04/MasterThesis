@@ -168,12 +168,8 @@ class Processor():
                 self.model = nn.DataParallel(self.model, device_ids=self.arg.device, output_device=self.output_device)
 
     def load_data(self):
-        """
-
-        In total load 63026 + 50919 = 113945 data points. And it's 114480 - 113945 = 505, which is exactly
+        """ In total load 63026 + 50919 = 113945 data points. And it's 114480 - 113945 = 505, which is exactly
         the number of data with missing skeletons, so no excessive data is left out.
-
-        :return:
         """
         Feeder = import_class(self.arg.feeder)
         self.data_loader = dict()

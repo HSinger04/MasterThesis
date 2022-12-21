@@ -22,13 +22,17 @@ class Model(nn.Module):
                  att_drop=0, dropout=0, dropout2d=0):
         super().__init__()
 
+        # n
         self.len_parts = len_parts
         in_channels = config[0][0]
         self.out_channels = config[-1][1]
 
+        # TODO: T from "T parts"? Additional strong evidence from bottom of page 5.
         num_frames = num_frames // len_parts
+        # V = n * V_0
         num_joints = num_joints * len_parts
-        
+
+        # feature mapping layer
         self.input_map = nn.Sequential(
             nn.Conv2d(num_channels, in_channels, 1),
             nn.BatchNorm2d(in_channels),

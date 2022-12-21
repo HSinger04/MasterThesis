@@ -1,4 +1,5 @@
 denoised_data
 raw_data
-NTU120_XSet.npz
-NTU120_XSub.npz
+*.npz
+*.npy
+*.h5

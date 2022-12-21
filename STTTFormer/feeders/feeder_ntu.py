@@ -45,6 +45,7 @@ class Feeder(Dataset):
     def load_data(self):
         # data: N C V T M
         if self.use_mmap:
+            # TODO: Allows for RAM-friendly loading of data
             npz_data = np.load(self.data_path, mmap_mode='r')
         else:
             npz_data = np.load(self.data_path)

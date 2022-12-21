@@ -16,6 +16,7 @@ class STA_Block(nn.Module):
         padt = int((kernel_size[0] - 1) / 2)
         
         # Spatio-Temporal Tuples Attention
+        # Positional encoding
         if self.use_pes: self.pes = Pos_Embed(in_channels, num_frames, num_joints)
         self.to_qkvs = nn.Conv2d(in_channels, 2 * num_heads * qkv_dim, 1, bias=True)
         self.alphas = nn.Parameter(torch.ones(1, num_heads, 1, 1), requires_grad=True)

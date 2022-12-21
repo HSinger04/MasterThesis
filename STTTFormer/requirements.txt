@@ -5,4 +5,5 @@ tensorboardX
 matplotlib
 pyyaml
 tqdm
-opencv-python
+pickle5
+h5py

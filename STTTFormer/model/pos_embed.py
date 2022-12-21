@@ -4,6 +4,9 @@ import math
 import numpy as np
 
 class Pos_Embed(nn.Module):
+    """
+    Positional encoding
+    """
     def __init__(self, channels, num_frames, num_joints):
         super().__init__()
 

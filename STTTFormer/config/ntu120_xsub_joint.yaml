@@ -29,15 +29,22 @@ test_feeder_args:
 # model
 model: model.sttformer.Model
 model_args:
+  # n in paper, the number of frames in a tuple
   len_parts: 6
+  # Seems to be T
   num_frames: 120
   num_joints: 25
+  # TODO: Gotta change it to 100
   num_classes: 120
   num_heads: 3
+  # TODO: Not exactly clear
   kernel_size: [3, 5]
   num_persons: 2
+  # for feature mapping layer
   num_channels: 3
+  # Whether to use positional encoding or not
   use_pes: True
+  # The configs for the layers of STTA and IFFA. Number of configs == L, the number of layers of STTA and IFFA
   config: [[64,  64,  16], [64,  64,  16], 
            [64,  128, 32], [128, 128, 32],
            [128, 256, 64], [256, 256, 64], 
