@@ -22,6 +22,7 @@ raw_denoised_joints_pkl = '/kaggle/input/NTU-Pre-Seq/raw_denoised_joints.pkl'
 frames_file = osp.join('/kaggle/input/ntupreseq/frames_cnt.txt')
 
 data_format = "np"
+one_hot = False
 
 if not KAGGLE:
     import pickle as pickle
@@ -33,6 +34,7 @@ if not KAGGLE:
     parser.add_argument('--raw_denoised_joints.pkl', help='./denoised_data/raw_denoised_joints.pkl')
     parser.add_argument('--frames_file', help='./denoised_data/frames_cnt.txt')
     parser.add_argument('--data_format', help='Either h5 or np')
+    parser.add_argument('--one_hot', help='Whether y should be one_hot or not')
 
     args = parser.parse_args()
     args_dict = vars(parser.parse_args())
@@ -43,6 +45,7 @@ if not KAGGLE:
     raw_denoised_joints_pkl = args_dict['raw_denoised_joints.pkl']
     frames_file = args_dict['frames_file']
     data_format = args_dict['data_format']
+    one_hot = args_dict['one_hot']
 
 setup_file = osp.join(stat_path, 'setup.txt')
 camera_file = osp.join(stat_path, 'camera.txt')
@@ -189,50 +192,83 @@ def split_train_val(train_indices, method='sklearn', ratio=0.05):
         return train_indices, val_indices
 
 
-def split_dataset(skes_joints, label, performer, setup, evaluation, save_path, data_format):
+def split_dataset(skes_joints, label, performer, setup, evaluation, save_path, data_format, one_hot):
     train_indices, test_indices, sample_indices = get_indices(performer, setup, label, evaluation)
     # m = 'sklearn'  # 'sklearn' or 'numpy'
     # Select validation set from training set
     # train_indices, val_indices = split_train_val(train_indices, m)
+
+    # Ske_names
+    skes_name = np.loadtxt(skes_name_file, dtype=str)
+    train_names = skes_name[train_indices]
+    test_names = skes_name[test_indices]
 
     # Save labels and num_frames for each sequence of each data set
     train_labels = label[train_indices]
     test_labels = label[test_indices]
 
     train_x = skes_joints[train_indices]
-    train_y = one_hot_vector(train_labels)
+    train_y = train_labels
     test_x = skes_joints[test_indices]
-    test_y = one_hot_vector(test_labels)
+    test_y = test_labels
 
-    print("bla")
+    if one_hot:
+        train_y = one_hot_vector(train_y)
+        test_y = one_hot_vector(test_y)
 
     if len(sample_indices):
+        sample_names = skes_name[sample_indices]
         sample_labels = label[sample_indices]
         sample_x = skes_joints[sample_indices]
-        sample_y = one_hot_vector(sample_labels)
+        sample_y = sample_labels
+
+        if one_hot:
+            sample_y = one_hot_vector(sample_labels)
 
     if data_format == 'np':
         save_name = osp.join(save_path, 'NTU120_%s.npz') % evaluation
 
         if len(sample_indices):
-            np.savez(save_name, x_train=train_x, y_train=train_y, x_test=test_x, y_test=test_y,
-                     x_sample=sample_x, y_sample=sample_y)
+            if one_hot:
+                np.savez(save_name, x_train=train_x, y_train=train_y, names_train=train_names, x_test=test_x,
+                         y_test=test_y, names_test=test_names, x_sample=sample_x, y_sample=sample_y,
+                         names_sample=sample_names)
+            else:
+                np.savez(save_name, x_train=train_x, y_not_oh_train=train_y, names_train=train_names, x_test=test_x,
+                         y_not_oh_test=test_y, names_test=test_names, x_sample=sample_x, y_not_oh_sample=sample_y,
+                         names_sample=sample_names)
         else:
-            np.savez(save_name, x_train=train_x, y_train=train_y, x_test=test_x, y_test=test_y)
+            if one_hot:
+                np.savez(save_name, x_train=train_x, y_train=train_y, names_train=train_names, x_test=test_x,
+                         y_test=test_y, names_test=test_names)
+            else:
+                np.savez(save_name, x_train=train_x, y_not_oh_train=train_y, names_train=train_names,
+                         x_test=test_x, y_not_oh_test=test_y, names_test=test_names)
 
     elif data_format == 'h5':
         # Save data into a .h5 file
         h5file = h5py.File(osp.join(save_path, 'NTU_%s.h5' % (evaluation)), 'w')
         # Training set
         h5file.create_dataset('x', data=train_x)
-        h5file.create_dataset('y', data=train_y)
+        h5file.create_dataset('names', data=train_names)
         # Test set
         h5file.create_dataset('test_x', data=test_x)
-        h5file.create_dataset('test_y', data=test_y)
+        h5file.create_dataset('test_names', data=test_names)
         # Sample set
         if len(sample_indices):
             h5file.create_dataset('sample_x', data=sample_x)
-            h5file.create_dataset('sample_y', data=sample_y)
+            h5file.create_dataset('sample_names', data=sample_names)
+            if one_hot:
+                h5file.create_dataset('sample_y', data=sample_y)
+            else:
+                h5file.create_dataset('sample_y_not_oh', data=sample_y)
+
+        if one_hot:
+            h5file.create_dataset('y', data=train_y)
+            h5file.create_dataset('test_y', data=test_y)
+        else:
+            h5file.create_dataset('y_not_oh', data=train_y)
+            h5file.create_dataset('test_y_not_oh', data=test_y)
 
         h5file.close()
 
@@ -342,4 +378,4 @@ if __name__ == '__main__':
     # evaluations = ['XSet', 'XSub']
     evaluations = ['one_shot']
     for evaluation in evaluations:
-        split_dataset(skes_joints, label, performer, setup, evaluation, save_path, data_format=data_format)
+        split_dataset(skes_joints, label, performer, setup, evaluation, save_path, data_format, one_hot)
