@@ -11,6 +11,7 @@ from tqdm import tqdm
 def pre_normalization(data, zaxis=[0, 1], xaxis=[8, 4]):
     N, C, T, V, M = data.shape
     s = np.transpose(data, [0, 4, 2, 3, 1])  # N, C, T, V, M  to  N, M, T, V, C
+    del data
 
     print('pad the null frames with the previous frames')
     for i_s, skeleton in enumerate(tqdm(s)):  # pad

@@ -4,7 +4,7 @@ run_mode: train
 # feeder
 feeder: feeders.feeder_ntu.Feeder
 train_feeder_args:
-  data_path: gendata/ntu120/NTU120_XSub.npz
+  data_path: gendata/ntu120/NTU_one_shot_npy
   split: train
   debug: False
   random_choose: False
@@ -18,7 +18,7 @@ train_feeder_args:
   bone: False
 
 test_feeder_args:
-  data_path: gendata/ntu120/NTU120_XSub.npz
+  data_path: gendata/ntu120/NTU_one_shot_npy
   split: test
   debug: False
   window_size: 64

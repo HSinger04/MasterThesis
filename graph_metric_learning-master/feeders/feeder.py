@@ -6,6 +6,7 @@ import sys
 
 sys.path.extend(['../'])
 from feeders import tools
+import os.path as osp
 
 
 class Feeder(Dataset):
@@ -40,6 +41,11 @@ class Feeder(Dataset):
 
     def load_data(self):
         # data: N C V T M
+        mmap_mode = None
+        if self.use_mmap:
+            mmap_mode = 'r'
+
+        self.data = np.load(self.data_path, mmap_mode=mmap_mode)
 
         try:
             with open(self.label_path) as f:
@@ -49,11 +55,6 @@ class Feeder(Dataset):
             with open(self.label_path, 'rb') as f:
                 self.sample_name, self.label = pickle.load(f, encoding='latin1')
 
-        # load data
-        if self.use_mmap:
-            self.data = np.load(self.data_path, mmap_mode='r')
-        else:
-            self.data = np.load(self.data_path)
         if self.debug:
             self.label = self.label[0:100]
             self.data = self.data[0:100]

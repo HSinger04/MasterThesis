@@ -10,7 +10,7 @@ import pytorch_metric_learning.utils.logging_presets as logging_presets
 #import torchvision
 import logging
 logging.getLogger().setLevel(logging.INFO)
-import os
+import os.path as osp
 
 import pytorch_metric_learning
 from pytorch_metric_learning.testers.base_tester import BaseTester
@@ -29,7 +29,7 @@ from omegaconf import DictConfig
 
 from model import agcn, msg3d
 from graph import ntu_rgb_d
-
+from feeders import feeder
 
 # reprodcibile
 np.random.seed(42)
@@ -123,33 +123,32 @@ class Identity(nn.Module):
 
 
 def get_datasets(data_dir, cfg, mode="train"):
-    from feeders import feeder
-    data_path = "/home/raphael/git/graph_metric_learning/"
+    data_path = "/home/work/PycharmProjects/MA/MasterThesis/graph_metric_learning-master"
 
-    train_dataset = feeder.Feeder(data_path=data_path+"data/ntu/one_shot/train_data_joint.npy",
-                                  label_path=data_path+"data/ntu/one_shot/train_label.pkl",
+    train_dataset = feeder.Feeder(data_path=osp.join(data_path, "data/ntu/one_shot/train_data_joint.npy"),
+                                  label_path=osp.join(data_path, "data/ntu/one_shot/train_label.pkl"),
                                   debug=False)
 
-    test_dataset = feeder.Feeder(data_path=data_path+"data/ntu/one_shot/val_data_joint.npy",
-                               label_path=data_path+"data/ntu/one_shot/val_label.pkl",
+    test_dataset = feeder.Feeder(data_path=osp.join(data_path, "data/ntu/one_shot/val_data_joint.npy"),
+                               label_path=osp.join(data_path, "data/ntu/one_shot/val_label.pkl"),
                                debug=False)
 
-    sample_dataset = feeder.Feeder(data_path=data_path+"data/ntu/one_shot/sample_data_joint.npy",
-                               label_path=data_path+"data/ntu/one_shot/sample_label.pkl",
+    sample_dataset = feeder.Feeder(data_path=osp.join(data_path, "data/ntu/one_shot/sample_data_joint.npy"),
+                               label_path=osp.join(data_path, "data/ntu/one_shot/sample_label.pkl"),
                                debug=False)
 
 
     return train_dataset, test_dataset, sample_dataset
 
 
-@hydra.main(config_path="config/yaml")
+@hydra.main(config_path="config")
 def train_app(cfg):
-    print(cfg.pretty())
+    print(cfg)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Set trunk model and replace the softmax layer with an identity function
-    #trunk = torchvision.models.__dict__[cfg.model.model_name](pretrained=cfg.model.pretrained)
+    #trunk = torchvision.models.__dict__[cfg.model.model.model_name](pretrained=cfg.model.model.pretrained)
     #graph = ntu_rgb_d.Graph()
     #trunk = agcn.Model(graph="graph.ntu_rgb_d.Graph")
     trunk = msg3d.Model(graph="graph.ntu_rgb_d.AdjMatrixGraph", num_class=100, num_point=25, num_person=2, num_gcn_scales=13, num_g3d_scales=6)
@@ -167,57 +166,57 @@ def train_app(cfg):
     trunk = torch.nn.DataParallel(trunk.to(device))
 
     # TODO: Why did he do this?
-    embedder = torch.nn.DataParallel(MLP([trunk_output_size, cfg.embedder.size]).to(device))
-    classifier = torch.nn.DataParallel(MLP([cfg.embedder.size, cfg.embedder.class_out_size])).to(device)
+    embedder = torch.nn.DataParallel(MLP([trunk_output_size, cfg.embedder.embedder.size]).to(device))
+    classifier = torch.nn.DataParallel(MLP([cfg.embedder.embedder.size, cfg.embedder.embedder.class_out_size])).to(device)
 
     # Set optimizers
-    if cfg.optimizer.name == "sdg":
-        trunk_optimizer = torch.optim.SGD(trunk.parameters(), lr=cfg.optimizer.lr, momentum=cfg.optimizer.momentum, weight_decay=cfg.optimizer.weight_decay)
-        embedder_optimizer = torch.optim.SGD(embedder.parameters(), lr=cfg.optimizer.lr, momentum=cfg.optimizer.momentum, weight_decay=cfg.optimizer.weight_decay)
-        classifier_optimizer = torch.optim.SGD(classifier.parameters(), lr=cfg.optimizer.lr, momentum=cfg.optimizer.momentum, weight_decay=cfg.optimizer.weight_decay)
-    elif cfg.optimizer.name == "rmsprop":
-        trunk_optimizer = torch.optim.RMSprop(trunk.parameters(), lr=cfg.optimizer.lr, momentum=cfg.optimizer.momentum, weight_decay=cfg.optimizer.weight_decay)
-        embedder_optimizer = torch.optim.RMSprop(embedder.parameters(), lr=cfg.optimizer.lr, momentum=cfg.optimizer.momentum, weight_decay=cfg.optimizer.weight_decay)
-        classifier_optimizer = torch.optim.RMSprop(classifier.parameters(), lr=cfg.optimizer.lr, momentum=cfg.optimizer.momentum, weight_decay=cfg.optimizer.weight_decay)
+    if cfg.optimizer.optimizer.name == "sdg":
+        trunk_optimizer = torch.optim.SGD(trunk.parameters(), lr=cfg.optimizer.optimizer.lr, momentum=cfg.optimizer.optimizer.momentum, weight_decay=cfg.optimizer.optimizer.weight_decay)
+        embedder_optimizer = torch.optim.SGD(embedder.parameters(), lr=cfg.optimizer.optimizer.lr, momentum=cfg.optimizer.optimizer.momentum, weight_decay=cfg.optimizer.optimizer.weight_decay)
+        classifier_optimizer = torch.optim.SGD(classifier.parameters(), lr=cfg.optimizer.optimizer.lr, momentum=cfg.optimizer.optimizer.momentum, weight_decay=cfg.optimizer.optimizer.weight_decay)
+    elif cfg.optimizer.optimizer.name == "rmsprop":
+        trunk_optimizer = torch.optim.RMSprop(trunk.parameters(), lr=cfg.optimizer.optimizer.lr, momentum=cfg.optimizer.optimizer.momentum, weight_decay=cfg.optimizer.optimizer.weight_decay)
+        embedder_optimizer = torch.optim.RMSprop(embedder.parameters(), lr=cfg.optimizer.optimizer.lr, momentum=cfg.optimizer.optimizer.momentum, weight_decay=cfg.optimizer.optimizer.weight_decay)
+        classifier_optimizer = torch.optim.RMSprop(classifier.parameters(), lr=cfg.optimizer.optimizer.lr, momentum=cfg.optimizer.optimizer.momentum, weight_decay=cfg.optimizer.optimizer.weight_decay)
 
 
 
     # Set the datasets
-    data_dir = os.environ["DATASET_FOLDER"]+"/"+cfg.dataset.data_dir
+    data_dir = cfg.dataset.dataset.data_dir
     print("Data dir: "+data_dir)
 
     # TODO: What's this "type"? Also note: Dataset is feeder
-    train_dataset, val_dataset, val_samples_dataset = get_datasets(data_dir, cfg, mode=cfg.mode.type)
+    train_dataset, val_dataset, val_samples_dataset = get_datasets(data_dir, cfg, mode=cfg.mode.mode.type)
     print("Trainset: ",len(train_dataset), "Testset: ",len(val_dataset), "Samplesset: ",len(val_samples_dataset))
 
     # Set the loss function
-    if cfg.embedder_loss.name == "margin_loss":
-        loss = losses.MarginLoss(margin=cfg.embedder_loss.margin,nu=cfg.embedder_loss.nu,beta=cfg.embedder_loss.beta)
-    if cfg.embedder_loss.name == "triplet_margin":
-        loss = losses.TripletMarginLoss(margin=cfg.embedder_loss.margin)
-    if cfg.embedder_loss.name == "multi_similarity":
-        loss = losses.MultiSimilarityLoss(alpha=cfg.embedder_loss.alpha, beta=cfg.embedder_loss.beta, base=cfg.embedder_loss.base)
+    if cfg.embedder.embedder_loss.name == "margin_loss":
+        loss = losses.MarginLoss(margin=cfg.embedder.embedder_loss.margin,nu=cfg.embedder.embedder_loss.nu,beta=cfg.embedder.embedder_loss.beta)
+    if cfg.embedder.embedder_loss.name == "triplet_margin":
+        loss = losses.TripletMarginLoss(margin=cfg.embedder.embedder_loss.margin)
+    if cfg.embedder.embedder_loss.name == "multi_similarity":
+        loss = losses.MultiSimilarityLoss(alpha=cfg.embedder.embedder_loss.alpha, beta=cfg.embedder.embedder_loss.beta, base=cfg.embedder.embedder_loss.base)
 
     # Set the classification loss:
     classification_loss = torch.nn.CrossEntropyLoss()
 
     # Set the mining function
 
-    if cfg.miner.name == "triplet_margin":
+    if cfg.miner.miner.name == "triplet_margin":
         #miner = miners.TripletMarginMiner(margin=0.2)
-        miner = miners.TripletMarginMiner(margin=cfg.miner.margin)
-    if cfg.miner.name == "multi_similarity":
-        miner = miners.MultiSimilarityMiner(epsilon=cfg.miner.epsilon)
+        miner = miners.TripletMarginMiner(margin=cfg.miner.miner.margin)
+    if cfg.miner.miner.name == "multi_similarity":
+        miner = miners.MultiSimilarityMiner(epsilon=cfg.miner.miner.epsilon)
         #miner = miners.MultiSimilarityMiner(epsilon=0.05)
 
-    #loss = losses.CrossBatchMemory(loss, cfg.embedder.size, memory_size=1024, miner=miner) 
+    #loss = losses.CrossBatchMemory(loss, cfg.embedder.embedder.size, memory_size=1024, miner=miner) 
     #extra_str = "cb_mem"
     extra_str = ""
 
-    batch_size = cfg.trainer.batch_size
+    batch_size = cfg.trainer.trainer.batch_size
     # 100 by default
-    num_epochs = cfg.trainer.num_epochs
-    iterations_per_epoch = cfg.trainer.iterations_per_epoch
+    num_epochs = cfg.trainer.trainer.num_epochs
+    iterations_per_epoch = cfg.trainer.trainer.iterations_per_epoch
     # Set the dataloader sampler
     sampler = samplers.MPerClassSampler(train_dataset.label, m=4, length_before_new_iter=len(train_dataset))
     #sampler = samplers.MPerClassSampler(train_dataset.label, m=4, length_before_new_iter=iterations_per_epoch)
@@ -241,21 +240,21 @@ def train_app(cfg):
             "trunk_scheduler_by_epoch": torch.optim.lr_scheduler.StepLR(embedder_optimizer, cfg.scheduler.step_size, gamma=cfg.scheduler.gamma),
             }
 
-    experiment_name = "%s_model_%s_cl_%s_ml_%s_miner_%s_mix_ml_%02.2f_mix_cl_%02.2f_resize_%d_emb_size_%d_class_size_%d_opt_%s_lr_%02.2f_%s"%(cfg.dataset.name,
-                                                                                                  cfg.model.model_name, 
+    experiment_name = "%s_model_%s_cl_%s_ml_%s_miner_%s_mix_ml_%02.2f_mix_cl_%02.2f_resize_%d_emb_size_%d_class_size_%d_opt_%s_lr_%02.2f_%s"%(cfg.dataset.dataset.name,
+                                                                                                  cfg.model.model.model_name, 
                                                                                                   "cross_entropy", 
-                                                                                                  cfg.embedder_loss.name, 
-                                                                                                  cfg.miner.name, 
+                                                                                                  cfg.embedder.embedder_loss.name, 
+                                                                                                  cfg.miner.miner.name, 
                                                                                                   cfg.loss.metric_loss, 
                                                                                                   cfg.loss.classifier_loss,
-                                                                                                  cfg.transform.transform_resize,
-                                                                                                  cfg.embedder.size,
-                                                                                                  cfg.embedder.class_out_size,
-                                                                                                  cfg.optimizer.name,
-                                                                                                  cfg.optimizer.lr,
+                                                                                                  cfg.transform.transform.transform_resize,
+                                                                                                  cfg.embedder.embedder.size,
+                                                                                                  cfg.embedder.embedder.class_out_size,
+                                                                                                  cfg.optimizer.optimizer.name,
+                                                                                                  cfg.optimizer.optimizer.lr,
                                                                                                   extra_str
-                                                                                                  #cfg.optimizer.momentum,
-                                                                                                  #cfg.optimizer.weight_decay
+                                                                                                  #cfg.optimizer.optimizer.momentum,
+                                                                                                  #cfg.optimizer.optimizer.weight_decay
                                                                                                   )
     record_keeper, _, _ = logging_presets.get_record_keeper("logs/%s"%(experiment_name), "tensorboard/%s"%(experiment_name))
     hooks = logging_presets.get_hook_container(record_keeper)
@@ -281,7 +280,7 @@ def train_app(cfg):
             # How the data gets sampled
             sampler=sampler,
             lr_schedulers=schedulers,
-            dataloader_num_workers=cfg.trainer.batch_size,
+            dataloader_num_workers=cfg.trainer.trainer.batch_size,
             loss_weights=loss_weights,
             end_of_iteration_hook=hooks.end_of_iteration_hook,
             end_of_epoch_hook=end_of_epoch_hook
@@ -293,4 +292,10 @@ def train_app(cfg):
     tester = OneShotTester()
 
 if __name__ == "__main__":
+    # TODO: Remove
+    data_path = "./"
+    train_dataset = feeder.Feeder(data_path=data_path+"data/ntu/one_shot/train_data_joint.npy",
+                                  label_path=data_path+"data/ntu/one_shot/train_label.pkl",
+                                  debug=False)
+
     train_app()

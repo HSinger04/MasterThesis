@@ -1,7 +1,7 @@
 import numpy as np
 from torch.utils.data import Dataset
 from feeders import tools
-
+import os.path as osp
 
 class Feeder(Dataset):
     def __init__(self, data_path, label_path=None, p_interval=1, split='train', random_choose=False, random_shift=False,
@@ -43,21 +43,22 @@ class Feeder(Dataset):
             self.get_mean_map()
 
     def load_data(self):
-        # data: N C V T M
+        mmap_mode = None
         if self.use_mmap:
-            # TODO: Allows for RAM-friendly loading of data
-            npz_data = np.load(self.data_path, mmap_mode='r')
-        else:
-            npz_data = np.load(self.data_path)
-
+            mmap_mode = 'r'
+        # data: N C V T M
         if self.split == 'train':
-            self.data = npz_data['x_train']
-            self.label = np.where(npz_data['y_train'] > 0)[1]
+            self.data = np.load(osp.join(self.data_path, "x_train.npy"), mmap_mode=mmap_mode)
+            self.label = np.load(osp.join(self.data_path, "y_train.npy"), mmap_mode=mmap_mode)
+            #self.label = np.where(npz_data['y_train'] > 0)[1]
+            # TODO: Sample name should be the actual name of the corresponding file, I think
             self.sample_name = ['train_' + str(i) for i in range(len(self.data))]
+
         elif self.split == 'test':
-            self.data = npz_data['x_test']
-            self.label = np.where(npz_data['y_test'] > 0)[1]
+            self.data = np.load(osp.join(self.data_path, "x_test.npy"), mmap_mode=mmap_mode)
+            self.label = np.load(osp.join(self.data_path, "y_train.npy"), mmap_mode=mmap_mode)
             self.sample_name = ['test_' + str(i) for i in range(len(self.data))]
+        # TODO: Sample mode
         else:
             raise NotImplementedError('data split only supports train/test')
 

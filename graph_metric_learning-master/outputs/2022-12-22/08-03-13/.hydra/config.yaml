@@ -1,0 +1,53 @@
+mode:
+  mode:
+    type: final_train
+model:
+  model:
+    model_name: agcn
+    pretrained: false
+dataset:
+  dataset:
+    name: NTU_2sAGCN
+    data_dir: /ntu/ntu_gcn/
+optimizer:
+  optimizer:
+    name: rmsprop
+    lr: 1.0e-06
+    weight_decay: 0
+    momentum: 0
+  scheduler:
+    name: step
+    step_size: 1000
+    gamma: 0.1
+miner:
+  miner:
+    name: multi_similarity
+    epsilon: 0.1
+embedder_loss:
+  embedder_loss:
+    name: triplet_margin
+    margin: 0.2
+trainer:
+  trainer:
+    num_epochs: 100
+    batch_size: 4
+    iterations_per_epoch: 1000
+loss:
+  loss:
+    classifier_loss: 0.5
+    metric_loss: 0.5
+embedder:
+  embedder:
+    size: 128
+    class_out_size: 21
+transform:
+  transform:
+    transform_resize: 256
+    transform_resize_match: false
+    transform_normalize: false
+    transform_random_horizontal_flip: false
+    transform_random_perspective: false
+    transform_random_affine: false
+    transform_random_resized_crop: false
+    transform_random_rotation: false
+    transform_random_shear: false
