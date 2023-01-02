@@ -10,7 +10,7 @@ import os.path as osp
 
 
 class Feeder(Dataset):
-    def __init__(self, data_path, label_path,
+    def __init__(self, data_path, label_path, train,
                  random_choose=False, random_shift=False, random_move=False,
                  window_size=-1, normalization=False, debug=False, use_mmap=True):
         """
@@ -33,11 +33,14 @@ class Feeder(Dataset):
         self.random_shift = random_shift
         self.random_move = random_move
         self.window_size = window_size
+        # FAQ: Can lead to memory overload
         self.normalization = normalization
         self.use_mmap = use_mmap
+        self.train = train
         self.load_data()
         if normalization:
             self.get_mean_map()
+            self.data[:10] = (self.data[:10] - self.mean_map) / self.std_map
 
     def load_data(self):
         # data: N C V T M
@@ -55,10 +58,16 @@ class Feeder(Dataset):
             with open(self.label_path, 'rb') as f:
                 self.sample_name, self.label = pickle.load(f, encoding='latin1')
 
+        if self.train:
+            # remap the labels to only go up to the number of unique labels to avoid bugs with e.g. CrossEntropyLoss
+            label_to_new_labels = dict(zip(np.unique(self.label), range(len(np.unique(self.label)))))
+            self.label = [label_to_new_labels[label] for label in self.label]
+
         if self.debug:
             self.label = self.label[0:100]
             self.data = self.data[0:100]
             self.sample_name = self.sample_name[0:100]
+
 
     def get_mean_map(self):
         """ Gets used for normalization. """
@@ -79,9 +88,6 @@ class Feeder(Dataset):
         label = self.label[index]
         data_numpy = np.array(data_numpy)
 
-        # TODO: More efficient if normalization moved to __init__
-        if self.normalization:
-            data_numpy = (data_numpy - self.mean_map) / self.std_map
         if self.random_shift:
             data_numpy = tools.random_shift(data_numpy)
         if self.random_choose:

@@ -30,6 +30,7 @@ from omegaconf import DictConfig
 from model import agcn, msg3d
 from graph import ntu_rgb_d
 from feeders import feeder
+from trainer.with_autocast_train_with_classifier import WithAutocastTrainWithClassifier
 
 # reprodcibile
 np.random.seed(42)
@@ -127,14 +128,17 @@ def get_datasets(data_dir, cfg, mode="train"):
 
     train_dataset = feeder.Feeder(data_path=osp.join(data_path, "data/ntu/one_shot/train_data_joint.npy"),
                                   label_path=osp.join(data_path, "data/ntu/one_shot/train_label.pkl"),
+                                  train=True,
                                   debug=False)
 
     test_dataset = feeder.Feeder(data_path=osp.join(data_path, "data/ntu/one_shot/val_data_joint.npy"),
                                label_path=osp.join(data_path, "data/ntu/one_shot/val_label.pkl"),
+                                train=False,
                                debug=False)
 
     sample_dataset = feeder.Feeder(data_path=osp.join(data_path, "data/ntu/one_shot/sample_data_joint.npy"),
                                label_path=osp.join(data_path, "data/ntu/one_shot/sample_label.pkl"),
+                                   train=False,
                                debug=False)
 
 
@@ -162,12 +166,14 @@ def train_app(cfg):
     trunk_output_size = trunk.fc.in_features
     # TODO: @Raphael: Is this the last layer?
     trunk.fc = Identity()
-    # TODO: Why did he do this?
     trunk = torch.nn.DataParallel(trunk.to(device))
+    # trunk = trunk.to(device)
 
     # TODO: Why did he do this?
     embedder = torch.nn.DataParallel(MLP([trunk_output_size, cfg.embedder.embedder.size]).to(device))
+    # embedder = MLP([trunk_output_size, cfg.embedder.embedder.size]).to(device)
     classifier = torch.nn.DataParallel(MLP([cfg.embedder.embedder.size, cfg.embedder.embedder.class_out_size])).to(device)
+    # classifier = MLP([cfg.embedder.embedder.size, cfg.embedder.embedder.class_out_size]).to(device)
 
     # Set optimizers
     if cfg.optimizer.optimizer.name == "sdg":
@@ -190,12 +196,12 @@ def train_app(cfg):
     print("Trainset: ",len(train_dataset), "Testset: ",len(val_dataset), "Samplesset: ",len(val_samples_dataset))
 
     # Set the loss function
-    if cfg.embedder.embedder_loss.name == "margin_loss":
-        loss = losses.MarginLoss(margin=cfg.embedder.embedder_loss.margin,nu=cfg.embedder.embedder_loss.nu,beta=cfg.embedder.embedder_loss.beta)
-    if cfg.embedder.embedder_loss.name == "triplet_margin":
-        loss = losses.TripletMarginLoss(margin=cfg.embedder.embedder_loss.margin)
-    if cfg.embedder.embedder_loss.name == "multi_similarity":
-        loss = losses.MultiSimilarityLoss(alpha=cfg.embedder.embedder_loss.alpha, beta=cfg.embedder.embedder_loss.beta, base=cfg.embedder.embedder_loss.base)
+    if cfg.embedder_loss.embedder_loss.name == "margin_loss":
+        loss = losses.MarginLoss(margin=cfg.embedder_loss.embedder_loss.margin,nu=cfg.embedder_loss.embedder_loss.nu,beta=cfg.embedder_loss.embedder_loss.beta)
+    if cfg.embedder_loss.embedder_loss.name == "triplet_margin":
+        loss = losses.TripletMarginLoss(margin=cfg.embedder_loss.embedder_loss.margin)
+    if cfg.embedder_loss.embedder_loss.name == "multi_similarity":
+        loss = losses.MultiSimilarityLoss(alpha=cfg.embedder_loss.embedder_loss.alpha, beta=cfg.embedder_loss.embedder_loss.beta, base=cfg.embedder_loss.embedder_loss.base)
 
     # Set the classification loss:
     classification_loss = torch.nn.CrossEntropyLoss()
@@ -230,23 +236,22 @@ def train_app(cfg):
     mining_funcs = {"tuple_miner": miner}
 
     # We can specify loss weights if we want to. This is optional
-    loss_weights = {"metric_loss": cfg.loss.metric_loss, "classifier_loss": cfg.loss.classifier_loss}
-
+    loss_weights = {"metric_loss": cfg.loss.loss.metric_loss, "classifier_loss": cfg.loss.loss.classifier_loss}
 
     schedulers = {
-            #"metric_loss_scheduler_by_epoch": torch.optim.lr_scheduler.StepLR(classifier_optimizer, cfg.scheduler.step_size, gamma=cfg.scheduler.gamma),
-            "embedder_scheduler_by_epoch": torch.optim.lr_scheduler.StepLR(embedder_optimizer, cfg.scheduler.step_size, gamma=cfg.scheduler.gamma),
-            "classifier_scheduler_by_epoch": torch.optim.lr_scheduler.StepLR(classifier_optimizer, cfg.scheduler.step_size, gamma=cfg.scheduler.gamma),
-            "trunk_scheduler_by_epoch": torch.optim.lr_scheduler.StepLR(embedder_optimizer, cfg.scheduler.step_size, gamma=cfg.scheduler.gamma),
+            #"metric_loss_scheduler_by_epoch": torch.optim.lr_scheduler.StepLR(classifier_optimizer, cfg.optimizer.scheduler.step_size, gamma=cfg.optimizer.scheduler.gamma),
+            "embedder_scheduler_by_epoch": torch.optim.lr_scheduler.StepLR(embedder_optimizer, cfg.optimizer.scheduler.step_size, gamma=cfg.optimizer.scheduler.gamma),
+            "classifier_scheduler_by_epoch": torch.optim.lr_scheduler.StepLR(classifier_optimizer, cfg.optimizer.scheduler.step_size, gamma=cfg.optimizer.scheduler.gamma),
+            "trunk_scheduler_by_epoch": torch.optim.lr_scheduler.StepLR(embedder_optimizer, cfg.optimizer.scheduler.step_size, gamma=cfg.optimizer.scheduler.gamma),
             }
 
     experiment_name = "%s_model_%s_cl_%s_ml_%s_miner_%s_mix_ml_%02.2f_mix_cl_%02.2f_resize_%d_emb_size_%d_class_size_%d_opt_%s_lr_%02.2f_%s"%(cfg.dataset.dataset.name,
                                                                                                   cfg.model.model.model_name, 
                                                                                                   "cross_entropy", 
-                                                                                                  cfg.embedder.embedder_loss.name, 
+                                                                                                  cfg.embedder_loss.embedder_loss.name, 
                                                                                                   cfg.miner.miner.name, 
-                                                                                                  cfg.loss.metric_loss, 
-                                                                                                  cfg.loss.classifier_loss,
+                                                                                                  cfg.loss.loss.metric_loss, 
+                                                                                                  cfg.loss.loss.classifier_loss,
                                                                                                   cfg.transform.transform.transform_resize,
                                                                                                   cfg.embedder.embedder.size,
                                                                                                   cfg.embedder.embedder.class_out_size,
@@ -271,7 +276,7 @@ def train_app(cfg):
     # TODO: Records metric after each epoch on one-shot validation data. I would like to change this.
     end_of_epoch_hook = hooks.end_of_epoch_hook(tester, dataset_dict, model_folder)
     # TODO: Training for metric learning
-    trainer = trainers.TrainWithClassifier(models,
+    trainer = WithAutocastTrainWithClassifier(cfg.use_amp, models,
             optimizers,
             batch_size,
             loss_funcs,
@@ -285,17 +290,26 @@ def train_app(cfg):
             end_of_iteration_hook=hooks.end_of_iteration_hook,
             end_of_epoch_hook=end_of_epoch_hook
             )
+    # trainer = trainers.TrainWithClassifier(models,
+    #         optimizers,
+    #         batch_size,
+    #         loss_funcs,
+    #         mining_funcs,
+    #         train_dataset,
+    #         # How the data gets sampled
+    #         sampler=sampler,
+    #         lr_schedulers=schedulers,
+    #         dataloader_num_workers=cfg.trainer.trainer.batch_size,
+    #         loss_weights=loss_weights,
+    #         end_of_iteration_hook=hooks.end_of_iteration_hook,
+    #         end_of_epoch_hook=end_of_epoch_hook
+    #         )
 
     trainer.train(num_epochs=num_epochs)
 
     # TODO: Unnecessary?
     tester = OneShotTester()
 
-if __name__ == "__main__":
-    # TODO: Remove
-    data_path = "./"
-    train_dataset = feeder.Feeder(data_path=data_path+"data/ntu/one_shot/train_data_joint.npy",
-                                  label_path=data_path+"data/ntu/one_shot/train_label.pkl",
-                                  debug=False)
 
+if __name__ == "__main__":
     train_app()

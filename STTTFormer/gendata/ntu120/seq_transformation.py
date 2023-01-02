@@ -13,7 +13,6 @@ import argparse
 
 
 
-# TODO: HD-GCN uses seq_transform for normal NTU, not 120
 root_path = "./"
 save_path = "./"
 stat_path = osp.join('/kaggle/input/ntupreseqstatistics')
@@ -45,7 +44,11 @@ if not KAGGLE:
     raw_denoised_joints_pkl = args_dict['raw_denoised_joints.pkl']
     frames_file = args_dict['frames_file']
     data_format = args_dict['data_format']
-    one_hot = args_dict['one_hot']
+
+    if args_dict['one_hot'].lower == 'true':
+        one_hot = True
+    else:
+        one_hot = False
 
 setup_file = osp.join(stat_path, 'setup.txt')
 camera_file = osp.join(stat_path, 'camera.txt')
@@ -98,7 +101,7 @@ def seq_translation(skes_joints):
 
         # Set the values of missing joint to 0 again after "centering"
         # TODO: A joint value of 0 is overloaded with representing the origin joint as well as missing joints.
-        # TODO: But maybe that's not a problem, as 0 as input does not get propagate through the network? (depends on network)
+        # But maybe that's not a problem, as 0 as input does not get propagate through the network? (depends on network)
         if (num_bodies == 2) and (cnt1 > 0):
             ske_joints[missing_frames_1, :75] = np.zeros((cnt1, 75), dtype=np.float32)
 
@@ -146,7 +149,6 @@ def align_frames(skes_joints):
 
     """
     num_skes = len(skes_joints)
-    # TODO: Requires global info
     max_num_frames = max_frames_cnt  # 300
     aligned_skes_joints = np.zeros((num_skes, max_num_frames, 150), dtype=np.float32)
 
@@ -155,9 +157,9 @@ def align_frames(skes_joints):
         num_bodies = 1 if ske_joints.shape[1] == 75 else 2
         if num_bodies == 1:
             # TODO: Diff to HD-GCN: Why do we stack the ske_joints twice instead of np.zeros_like for the 2nd?
-            # TODO: The second option makes much more sense. I suspect a bug. Otherwise, can also be used as
-            # TODO: training "both" networks to learn that particular form of action instead of the "2nd" network
-            # TODO: not learning anything
+            # The second option makes much more sense. I suspect a bug. Otherwise, can also be used as
+            # training "both" networks to learn that particular form of action instead of the "2nd" network
+            # not learning anything
             aligned_skes_joints[idx, :num_frames] = np.hstack((ske_joints, ske_joints))
             # aligned_skes_joints[idx, :num_frames] = np.hstack((ske_joints, np.zeros_like(ske_joints)))
         else:
@@ -370,7 +372,6 @@ if __name__ == '__main__':
 
     skes_joints = align_frames(skes_joints)  # aligned to the same frame length
 
-    # TODO: Maybe load later for memory?
     setup = np.loadtxt(setup_file, dtype=int)  # camera id: 1~32
     performer = np.loadtxt(performer_file, dtype=int)  # subject id: 1~106
     label = np.loadtxt(label_file, dtype=int) - 1  # action label: 0~119

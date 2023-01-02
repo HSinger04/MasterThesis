@@ -88,7 +88,6 @@ def denoising_by_length(ske_name, bodies_data):
     Filter out the bodyID which length is less or equal than the predefined threshold.
     Probable motivation: If a body only showed up for a very short amount of frames, it's likely that the
     body was just through a misdetection and not of an actual person
-    TODO: Couldn't find any info on this
 
     """
     noise_info = str()
@@ -380,7 +379,7 @@ def get_two_actors_points(bodies_data):
             # TODO: I am not understanding how this formula relates to showing there is no overlap. However, if there is
             # overlap, one might want to say that it's action of the other actor as there can be at most two
             # and the other one can't appear twice in the same frames.
-            # TODO: Another question I have: Why can we say that it necessarily belongs to the first actor? What if it's a case
+            # Another question I have: Why can we say that it necessarily belongs to the first actor? What if it's a case
             # that it does not overlap with neither first nor second actor?
             if min(end1, end) - max(start1, start) <= 0:  # no overlap with actor1
                 # Add joint and colors of first actor
@@ -421,13 +420,11 @@ def save_video(ske_name, colors):
     # size = 1920, 1080
     # fps = 31
     # out = cv2.VideoWriter(osp.join(video_path, ske_name + '.mp4'), cv2.VideoWriter_fourcc(*'mp4v'), fps, (size[1], size[0]), False)
-    # # TODO: debug
     # for i, frame in enumerate(colors):
     #     data = np.zeros(size, dtype='uint8')
     #     data.fill(255)
     #     coords = frame.reshape(-1, 2).astype(int)
     #     coords_2 = coords[:, 0] * size[1] + coords[:, 1]
-    #     # TODO: Indexing needs to be fixed
     #     try:
     #         np.put(data, coords_2, 0)
     #     except IndexError:

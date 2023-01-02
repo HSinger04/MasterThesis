@@ -190,13 +190,15 @@ if __name__ == '__main__':
                         default='../data/nturgbd_raw/one_shot_samples.txt')
     parser.add_argument('--out_folder', default='../data/ntu/')
 
+    parser.add_argument('--part', nargs='+', type=str)
+
     #benchmark = ['xsub', 'xview', 'one_shot']
     benchmark = ['one_shot']
     #part = ['train', 'val', 'sample']
     #part = ['val', 'sample']
-    # TODO
-    part = ['train']
     arg = parser.parse_args()
+
+    part = arg.part
 
     for b in benchmark:
         for p in part:

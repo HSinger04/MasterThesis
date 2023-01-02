@@ -49,15 +49,15 @@ class Feeder(Dataset):
         # data: N C V T M
         if self.split == 'train':
             self.data = np.load(osp.join(self.data_path, "x_train.npy"), mmap_mode=mmap_mode)
-            self.label = np.load(osp.join(self.data_path, "y_train.npy"), mmap_mode=mmap_mode)
-            #self.label = np.where(npz_data['y_train'] > 0)[1]
-            # TODO: Sample name should be the actual name of the corresponding file, I think
-            self.sample_name = ['train_' + str(i) for i in range(len(self.data))]
+            self.label = np.load(osp.join(self.data_path, "y_train.npy"))
+            self.label = np.where(self.label > 0)[1]
+            self.sample_name = np.load(osp.join(self.data_path, "names_train.npy"))
 
         elif self.split == 'test':
             self.data = np.load(osp.join(self.data_path, "x_test.npy"), mmap_mode=mmap_mode)
-            self.label = np.load(osp.join(self.data_path, "y_train.npy"), mmap_mode=mmap_mode)
-            self.sample_name = ['test_' + str(i) for i in range(len(self.data))]
+            self.label = np.load(osp.join(self.data_path, "y_train.npy"))
+            self.label = np.where(self.label > 0)[1]
+            self.sample_name = np.load(osp.join(self.data_path, "names_test.npy"))
         # TODO: Sample mode
         else:
             raise NotImplementedError('data split only supports train/test')
