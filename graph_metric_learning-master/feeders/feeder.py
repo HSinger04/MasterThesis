@@ -64,9 +64,9 @@ class Feeder(Dataset):
             self.label = [label_to_new_labels[label] for label in self.label]
 
         if self.debug:
-            self.label = self.label[0:100]
-            self.data = self.data[0:100]
-            self.sample_name = self.sample_name[0:100]
+            self.label = self.label[0:self.debug]
+            self.data = self.data[0:self.debug]
+            self.sample_name = self.sample_name[0:self.debug]
 
 
     def get_mean_map(self):

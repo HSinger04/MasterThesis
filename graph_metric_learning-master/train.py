@@ -276,7 +276,7 @@ def train_app(cfg):
     # TODO: Records metric after each epoch on one-shot validation data. I would like to change this.
     end_of_epoch_hook = hooks.end_of_epoch_hook(tester, dataset_dict, model_folder)
     # TODO: Training for metric learning
-    trainer = WithAutocastTrainWithClassifier(cfg.use_amp, models,
+    trainer = WithAutocastTrainWithClassifier(cfg.use_amp.use_amp.use_amp, models,
             optimizers,
             batch_size,
             loss_funcs,

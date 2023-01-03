@@ -7,3 +7,4 @@ umap-learn
 hydra-core
 tensorboard
 faiss-gpu
+pytest

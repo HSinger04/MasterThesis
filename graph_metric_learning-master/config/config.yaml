@@ -9,4 +9,4 @@ defaults:
   - loss: default
   - embedder: default
   - transform: minimal
-  - use_amp: true
+  - use_amp: amp_true

@@ -3,9 +3,9 @@ from pytorch_metric_learning.utils import common_functions as c_f
 import torch
 
 class WithAutocastTrainWithClassifier(TrainWithClassifier):
-    def __init__(self, use_amp, *args):
+    def __init__(self, use_amp, *args, **kwargs):
         self.set_use_amp(use_amp)
-        super.__init__(*args)
+        super().__init__(*args, **kwargs)
 
     def set_use_amp(self, use_amp):
         self.use_amp = use_amp
@@ -13,7 +13,7 @@ class WithAutocastTrainWithClassifier(TrainWithClassifier):
 
     def calculate_loss(self, curr_batch):
         data, labels = curr_batch
-        with torch.autocast(device_type='cuda', self.use_amp):
+        with torch.autocast(device_type='cuda', enabled=self.use_amp):
             embeddings = self.compute_embeddings(data)
             logits = self.maybe_get_logits(embeddings)
             indices_tuple = self.maybe_mine_embeddings(embeddings, labels)
@@ -38,5 +38,5 @@ class WithAutocastTrainWithClassifier(TrainWithClassifier):
         for k, v in self.optimizers.items():
             if c_f.regex_replace("_optimizer$", "", k) not in self.freeze_these:
                 self.scaler.step(v)
-                self.scaler.update(v)
+                self.scaler.update()
 
