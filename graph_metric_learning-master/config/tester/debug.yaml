@@ -1,0 +1,5 @@
+tester:
+  use_amp: true
+  batch_size: 16
+  dataloader_num_workers: 4
+  metric: "precision_at_1"

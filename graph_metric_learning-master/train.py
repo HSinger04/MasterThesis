@@ -31,6 +31,7 @@ from model import agcn, msg3d
 from graph import ntu_rgb_d
 from feeders import feeder
 from trainer.with_autocast_train_with_classifier import WithAutocastTrainWithClassifier
+from tester.with_autocast_one_shot_tester import WithAMPOneShotTester
 
 # reprodcibile
 np.random.seed(42)
@@ -46,6 +47,7 @@ class OneShotTester(BaseTester):
         self.max_accuracy = 0.0
         self.embedding_filename = ""
         self.end_of_testing_hook = end_of_testing_hook
+
 
     def __get_correct(self, output, target, topk=(1,)):
         with torch.no_grad():
@@ -89,7 +91,6 @@ class OneShotTester(BaseTester):
         keyname = self.accuracies_keyname("mean_average_precision_at_r") # accuracy as keyname not working
         accuracies[keyname] = accuracy
 
-
 class MLP(nn.Module):
     # layer_sizes[0] is the dimension of the input
     # layer_sizes[-1] is the dimension of the output
@@ -123,31 +124,55 @@ class Identity(nn.Module):
         return x
 
 
-def get_datasets(data_dir, cfg, mode="train"):
+def get_datasets(val_classes, mem_limits={"val_samples": 0, "val": 0, "train": 0}, debug=False):
     data_path = "/home/work/PycharmProjects/MA/MasterThesis/graph_metric_learning-master"
 
-    train_dataset = feeder.Feeder(data_path=osp.join(data_path, "data/ntu/one_shot/train_data_joint.npy"),
-                                  label_path=osp.join(data_path, "data/ntu/one_shot/train_label.pkl"),
-                                  train=True,
-                                  debug=False)
+    val_sample_names = []
 
-    test_dataset = feeder.Feeder(data_path=osp.join(data_path, "data/ntu/one_shot/val_data_joint.npy"),
-                               label_path=osp.join(data_path, "data/ntu/one_shot/val_label.pkl"),
-                                train=False,
-                               debug=False)
+    for i in val_classes:
+        sample_name = ""
 
-    sample_dataset = feeder.Feeder(data_path=osp.join(data_path, "data/ntu/one_shot/sample_data_joint.npy"),
-                               label_path=osp.join(data_path, "data/ntu/one_shot/sample_label.pkl"),
-                                   train=False,
-                               debug=False)
+        if i < 61:
+            sample_name += "S001"
+        else:
+            sample_name += "S018"
+
+        sample_name += "C003P008R001A"
+
+        if i < 10:
+            sample_name += "00" + str(i)
+        elif i < 100:
+            sample_name += "0" + str(i)
+        else:
+            sample_name += str(i)
+
+        sample_name += ".skeleton"
+        val_sample_names.append(sample_name)
 
 
-    return train_dataset, test_dataset, sample_dataset
+    train_dataset, val_dataset, val_samples_dataset = feeder.get_train_and_os_val(
+        data_path=osp.join(data_path, "data/ntu/one_shot/train_data_joint.npy"),
+        label_path=osp.join(data_path, "data/ntu/one_shot/train_label.pkl"),
+        val_classes=val_classes, val_sample_names=val_sample_names,
+        mem_limits=mem_limits, debug=debug)
+
+    return train_dataset, val_dataset, val_samples_dataset
 
 
 @hydra.main(config_path="config")
 def train_app(cfg):
     print(cfg)
+
+    # Set the datasets
+    data_dir = cfg.dataset.dataset.data_dir
+    print("Data dir: "+data_dir)
+
+    ds_mem_limits = cfg.dataset.dataset.dataset_split.mem_limits
+    mem_limits = {"val_samples": ds_mem_limits.val_samples, "val": ds_mem_limits.val, "train": ds_mem_limits.train}
+
+    train_dataset, val_dataset, val_samples_dataset = get_datasets(cfg.dataset.dataset.dataset_split.val_classes,
+                                                                   mem_limits, debug=cfg.dataset.dataset.debug)
+    print("Trainset: ",len(train_dataset), "Testset: ",len(val_dataset), "Samplesset: ",len(val_samples_dataset))
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -164,15 +189,15 @@ def train_app(cfg):
     #trunk = models.wide_resnet50_2(pretrained=True)
     #trunk = EfficientNet.from_pretrained('efficientnet-b2')
     trunk_output_size = trunk.fc.in_features
-    # TODO: @Raphael: Is this the last layer?
+
     trunk.fc = Identity()
-    trunk = torch.nn.DataParallel(trunk.to(device))
+    trunk = trunk.to(device)
     # trunk = trunk.to(device)
 
-    # TODO: Why did he do this?
-    embedder = torch.nn.DataParallel(MLP([trunk_output_size, cfg.embedder.embedder.size]).to(device))
+    embedder = MLP([trunk_output_size, cfg.embedder.embedder.size]).to(device)
     # embedder = MLP([trunk_output_size, cfg.embedder.embedder.size]).to(device)
-    classifier = torch.nn.DataParallel(MLP([cfg.embedder.embedder.size, cfg.embedder.embedder.class_out_size])).to(device)
+    # Set output size to the number of classes in training data
+    classifier = MLP([cfg.embedder.embedder.size, train_dataset.label.max() + 1]).to(device)
     # classifier = MLP([cfg.embedder.embedder.size, cfg.embedder.embedder.class_out_size]).to(device)
 
     # Set optimizers
@@ -184,16 +209,6 @@ def train_app(cfg):
         trunk_optimizer = torch.optim.RMSprop(trunk.parameters(), lr=cfg.optimizer.optimizer.lr, momentum=cfg.optimizer.optimizer.momentum, weight_decay=cfg.optimizer.optimizer.weight_decay)
         embedder_optimizer = torch.optim.RMSprop(embedder.parameters(), lr=cfg.optimizer.optimizer.lr, momentum=cfg.optimizer.optimizer.momentum, weight_decay=cfg.optimizer.optimizer.weight_decay)
         classifier_optimizer = torch.optim.RMSprop(classifier.parameters(), lr=cfg.optimizer.optimizer.lr, momentum=cfg.optimizer.optimizer.momentum, weight_decay=cfg.optimizer.optimizer.weight_decay)
-
-
-
-    # Set the datasets
-    data_dir = cfg.dataset.dataset.data_dir
-    print("Data dir: "+data_dir)
-
-    # TODO: What's this "type"? Also note: Dataset is feeder
-    train_dataset, val_dataset, val_samples_dataset = get_datasets(data_dir, cfg, mode=cfg.mode.mode.type)
-    print("Trainset: ",len(train_dataset), "Testset: ",len(val_dataset), "Samplesset: ",len(val_samples_dataset))
 
     # Set the loss function
     if cfg.embedder_loss.embedder_loss.name == "margin_loss":
@@ -222,10 +237,8 @@ def train_app(cfg):
     batch_size = cfg.trainer.trainer.batch_size
     # 100 by default
     num_epochs = cfg.trainer.trainer.num_epochs
-    iterations_per_epoch = cfg.trainer.trainer.iterations_per_epoch
     # Set the dataloader sampler
     sampler = samplers.MPerClassSampler(train_dataset.label, m=4, length_before_new_iter=len(train_dataset))
-    #sampler = samplers.MPerClassSampler(train_dataset.label, m=4, length_before_new_iter=iterations_per_epoch)
     
 
 
@@ -262,53 +275,42 @@ def train_app(cfg):
                                                                                                   #cfg.optimizer.optimizer.weight_decay
                                                                                                   )
     record_keeper, _, _ = logging_presets.get_record_keeper("logs/%s"%(experiment_name), "tensorboard/%s"%(experiment_name))
-    hooks = logging_presets.get_hook_container(record_keeper)
+    hooks = logging_presets.get_hook_container(record_keeper, primary_metric=cfg.tester.tester.metric)
     dataset_dict = {"samples": val_samples_dataset, "val": val_dataset}
     model_folder = "example_saved_models/%s/"%(experiment_name)
 
     # Create the tester
+    # TODO: Change back
     tester = OneShotTester(
+        cfg.tester.tester.use_amp,
+        cfg.tester.tester.batch_size,
+        cfg.tester.tester.dataloader_num_workers,
             end_of_testing_hook=hooks.end_of_testing_hook, 
             #size_of_tsne=20
             )
     #tester.embedding_filename=data_dir+"/embeddings_pretrained_triplet_loss_multi_similarity_miner.pkl"
     tester.embedding_filename=data_dir+"/"+experiment_name+".pkl"
-    # TODO: Records metric after each epoch on one-shot validation data. I would like to change this.
+    # Records metric after each epoch on one-shot validation data.
     end_of_epoch_hook = hooks.end_of_epoch_hook(tester, dataset_dict, model_folder)
-    # TODO: Training for metric learning
-    trainer = WithAutocastTrainWithClassifier(cfg.use_amp.use_amp.use_amp, models,
+    # Training for metric learning
+    trainer = WithAutocastTrainWithClassifier(cfg.trainer.trainer.use_amp, models,
             optimizers,
             batch_size,
             loss_funcs,
             mining_funcs,
             train_dataset,
+            iterations_per_epoch=cfg.trainer.trainer.iterations_per_epoch,
             # How the data gets sampled
             sampler=sampler,
             lr_schedulers=schedulers,
-            dataloader_num_workers=cfg.trainer.trainer.batch_size,
+            dataloader_num_workers=cfg.trainer.trainer.dataloader_num_workers,
             loss_weights=loss_weights,
             end_of_iteration_hook=hooks.end_of_iteration_hook,
             end_of_epoch_hook=end_of_epoch_hook
             )
-    # trainer = trainers.TrainWithClassifier(models,
-    #         optimizers,
-    #         batch_size,
-    #         loss_funcs,
-    #         mining_funcs,
-    #         train_dataset,
-    #         # How the data gets sampled
-    #         sampler=sampler,
-    #         lr_schedulers=schedulers,
-    #         dataloader_num_workers=cfg.trainer.trainer.batch_size,
-    #         loss_weights=loss_weights,
-    #         end_of_iteration_hook=hooks.end_of_iteration_hook,
-    #         end_of_epoch_hook=end_of_epoch_hook
-    #         )
 
     trainer.train(num_epochs=num_epochs)
-
-    # TODO: Unnecessary?
-    tester = OneShotTester()
+    print(tester.all_accuracies)
 
 
 if __name__ == "__main__":

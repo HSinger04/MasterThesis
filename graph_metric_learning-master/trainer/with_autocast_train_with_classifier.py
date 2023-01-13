@@ -2,10 +2,52 @@ from pytorch_metric_learning.trainers import TrainWithClassifier
 from pytorch_metric_learning.utils import common_functions as c_f
 import torch
 
+def get_train_dataloader(dataset, batch_size, sampler, num_workers, collate_fn):
+    """
+    Identical to PML's utils.common_functions.get_train_dataloader, except that pin_memory=True
+    """
+    if isinstance(sampler, torch.utils.data.BatchSampler):
+        return torch.utils.data.DataLoader(
+            dataset,
+            batch_sampler=sampler,
+            num_workers=num_workers,
+            collate_fn=collate_fn,
+            pin_memory=True,
+        )
+    return torch.utils.data.DataLoader(
+        dataset,
+        batch_size=int(batch_size),
+        sampler=sampler,
+        drop_last=True,
+        num_workers=num_workers,
+        collate_fn=collate_fn,
+        shuffle=sampler is None,
+        pin_memory=True,
+    )
+
 class WithAutocastTrainWithClassifier(TrainWithClassifier):
+    """ PML's TrainWithClassifier with support for Automatic Mixed Precision. """
     def __init__(self, use_amp, *args, **kwargs):
         self.set_use_amp(use_amp)
         super().__init__(*args, **kwargs)
+
+    def initialize_dataloader(self):
+        """
+        Identical to PML's base_trainers initialize_dataloader, except that pin_memory=True for the data loader
+        """
+        c_f.LOGGER.info("Initializing dataloader")
+        self.dataloader = get_train_dataloader(
+            self.dataset,
+            self.batch_size,
+            self.sampler,
+            self.dataloader_num_workers,
+            self.collate_fn,
+        )
+        if not self.iterations_per_epoch:
+            self.iterations_per_epoch = len(self.dataloader)
+        c_f.LOGGER.info("Initializing dataloader iterator")
+        self.dataloader_iter = iter(self.dataloader)
+        c_f.LOGGER.info("Done creating dataloader iterator")
 
     def set_use_amp(self, use_amp):
         self.use_amp = use_amp

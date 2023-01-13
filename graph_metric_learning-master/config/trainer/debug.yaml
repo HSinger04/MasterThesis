@@ -1,4 +1,6 @@
 trainer:
   num_epochs: 1
-  batch_size: 1
-  iterations_per_epoch: 1000
+  batch_size: 16
+  iterations_per_epoch: 64
+  dataloader_num_workers: 4
+  use_amp: true

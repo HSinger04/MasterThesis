@@ -6,13 +6,16 @@ import sys
 
 sys.path.extend(['../'])
 from feeders import tools
+import os
 import os.path as osp
+from shutil import rmtree
+from tqdm import tqdm
 
 
 class Feeder(Dataset):
     def __init__(self, data_path, label_path, train,
                  random_choose=False, random_shift=False, random_move=False,
-                 window_size=-1, normalization=False, debug=False, use_mmap=True):
+                 window_size=-1, normalization=False, debug=False, use_mmap=False):
         """
         
         :param data_path: 
@@ -58,16 +61,22 @@ class Feeder(Dataset):
             with open(self.label_path, 'rb') as f:
                 self.sample_name, self.label = pickle.load(f, encoding='latin1')
 
+        self.label = np.array(self.label)
+        self.sample_name = np.array(self.sample_name)
+
         if self.train:
-            # remap the labels to only go up to the number of unique labels to avoid bugs with e.g. CrossEntropyLoss
-            label_to_new_labels = dict(zip(np.unique(self.label), range(len(np.unique(self.label)))))
-            self.label = [label_to_new_labels[label] for label in self.label]
+            self.normalize_labels()
 
         if self.debug:
             self.label = self.label[0:self.debug]
             self.data = self.data[0:self.debug]
             self.sample_name = self.sample_name[0:self.debug]
 
+
+    def normalize_labels(self):
+        """ Remap the labels to only go up to the number of unique labels to avoid bugs with e.g. CrossEntropyLoss. """
+        label_to_new_labels = dict(zip(np.unique(self.label), np.array(range(len(np.unique(self.label))))))
+        self.label = np.array([label_to_new_labels[label] for label in self.label])
 
     def get_mean_map(self):
         """ Gets used for normalization. """
@@ -110,6 +119,114 @@ class Feeder(Dataset):
         hit_top_k = [l in rank[i, -top_k:] for i, l in enumerate(self.label)]
         return sum(hit_top_k) * 1.0 / len(hit_top_k)
 
+def get_data_from_idxs(data, idxs, mmap_dict={"mmap_filename": "temp", "mem_limit": 0}):
+    """ From data, take the subset given by idxs.
+
+    :param data: Data from which to generate subset of data.
+    :param idxs: Indices that dictate the subset to take from data.
+    :param mmap_dict: If your RAM isn't big enough, you can specify how many datapoints at once can be loaded into RAM.
+    In that case, your dataset will be saved in numpy.memmap mode and thus need to specify where the memmap should
+    be saved via key "mmap_filename" and how many datapoints can be loaded up at once in "mem_limit".
+    :return: Subset of data given by idxs as a np.array-like.
+    """
+    filename = ""
+    if mmap_dict["mem_limit"]:
+        filename = mmap_dict["mmap_filename"] + ".dat"
+        mmap_shape = list(data.data.shape)
+        mmap_shape[0] = idxs.sum()
+        mmap_arr = np.memmap(filename, dtype=data.data.dtype, mode='w+', shape=tuple(mmap_shape))
+        mem_limit = mmap_dict["mem_limit"]
+        j = (idxs.size // mem_limit) + 1
+        prev = 0
+        print("Processing " + os.path.basename(filename))
+        for i in tqdm(range(j)):
+            start_idx = i * mem_limit
+            temp_idxs = np.zeros(idxs.shape)
+            try:
+                end_idx = (i + 1) * mem_limit
+                temp_idxs = idxs[start_idx:end_idx]
+                data_slice = data.data[start_idx:end_idx][idxs[start_idx:end_idx]]
+            except IndexError:
+                data_slice = data.data[start_idx:][idxs[start_idx:]]
+            mmap_arr[prev:prev + data_slice.shape[0]] = data_slice
+            prev += data_slice.shape[0]
+
+        data.data = mmap_arr
+
+    else:
+        data.data = data.data[idxs]
+    data.label = data.label[idxs]
+    data.sample_name = data.sample_name[idxs]
+    return data, filename
+
+def get_train_and_os_val(data_path, label_path, val_classes, val_sample_names,
+                         mem_limits={"val_samples": 0, "val": 0, "train": 0}, debug=False):
+    """ Of the original train dataset given by data_path and label_path, generate the true train dataset that
+    the model gets trained on as well as a one-shot validation dataset and corresponding samples for it.
+
+    :param data_path: Path to the original train dataset
+    :param label_path: Path to the original train dataset's label
+    :param val_classes: List of classes to use for validation (name classes as values frin {1, ..., 120})
+    :param val_sample_names: List of skeletons to use as samples for the representatives of the validation classes
+    :param mem_limits: Dictionary that says up to how many examples can be loaded into RAM at once. If you want
+    a dataset loaded fully into RAM, specify 0 as the corresponding key's value.
+    :param debug: Set true for debugging purposes - generates the true train dataset faster,
+    which is the main bottleneck in speed.
+    :return: true train, validation and validation samples datasets from the original dataset as np.array-likes.
+    """
+
+    if mem_limits:
+        # Use a temporary folder for mmap_mode
+        mmap_folder = osp.join(osp.dirname(data_path), "temp")
+        if osp.exists(mmap_folder):
+            # Remove mmap_folder if it exists.
+            rmtree(mmap_folder, ignore_errors=True)
+
+        os.makedirs(mmap_folder)
+
+    # Create validation samples dataset
+    val_samples_dataset = Feeder(data_path, label_path, False, use_mmap=bool(mem_limits["val_samples"]))
+    orig_train_length = len(val_samples_dataset)
+
+    # Only pick skeletons that are listed in val_sample_names
+    val_samples_idxs = np.isin(val_samples_dataset.sample_name, [val_sample_names])
+    val_samples_dataset, val_samples_filename = get_data_from_idxs(
+        val_samples_dataset, val_samples_idxs, mmap_dict={"mmap_filename": osp.join(mmap_folder, "val_samples"),
+                                                      "mem_limit": mem_limits["val_samples"]})
+    if len(val_samples_dataset) < mem_limits["val_samples"]:
+        val_samples_dataset.data = np.array(val_samples_dataset.data)
+
+    # Create validation dataset
+    val_dataset = Feeder(data_path, label_path, False, use_mmap=bool(mem_limits["val"]))
+    # Only pick skeletons that are of the val_classes and also not part of the samples.
+    val_data_idxs = np.logical_xor(np.isin(val_dataset.label + 1, val_classes), val_samples_idxs)
+    val_dataset, val_filename = get_data_from_idxs(val_dataset, val_data_idxs, mmap_dict={"mmap_filename": osp.join(mmap_folder,
+                                                                                                      "val"),
+                                                      "mem_limit": mem_limits["val"]})
+    if len(val_dataset) < mem_limits["val"]:
+        val_dataset.data = np.array(val_dataset.data)
+
+    # Create true train set.
+    if not debug:
+        train_dataset = Feeder(data_path, label_path, False, use_mmap=bool(mem_limits["train"]))
+        # Pick skeletons that are neither part of validation samples nor validation dataset.
+        train_data_idxs = np.logical_not(np.logical_or(val_samples_idxs, val_data_idxs))
+        del val_samples_idxs
+        del val_data_idxs
+        train_dataset, train_filename = get_data_from_idxs(train_dataset, train_data_idxs,
+                                           mmap_dict={"mmap_filename": osp.join(mmap_folder, "train"),
+                                                      "mem_limit": mem_limits["train"]})
+        train_dataset.normalize_labels()
+
+        assert orig_train_length == len(val_samples_dataset) + len(val_dataset) + len(train_dataset)
+
+    else:
+        train_dataset = Feeder(data_path, label_path, True, use_mmap=bool(mem_limits["train"]))
+
+    if len(train_dataset) < mem_limits["train"]:
+        train_dataset.data = np.array(train_dataset.data)
+
+    return train_dataset, val_dataset, val_samples_dataset
 
 def import_class(name):
     components = name.split('.')

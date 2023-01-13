@@ -21,6 +21,7 @@ from hydra import compose, initialize
 from omegaconf import OmegaConf
 import pytorch_metric_learning
 from pytorch_metric_learning.testers.base_tester import BaseTester
+from pytorch_metric_learning.trainers import TrainWithClassifier
 
 logging.info("pytorch-metric-learning VERSION %s"%pytorch_metric_learning.__version__)
 logging.info("record_keeper VERSION %s"%record_keeper.__version__)
@@ -158,7 +159,7 @@ def get_time_and_memory():
     end_time = time.time()
     return end_time - start_time, torch.cuda.max_memory_allocated()
 
-def train_app(cfg):
+def train_app(cfg, train_class):
     # reprodcibile
     np.random.seed(42)
     torch.manual_seed(42)
@@ -183,7 +184,7 @@ def train_app(cfg):
     trunk_output_size = trunk.fc.in_features
     # TODO: @Raphael: Is this the last layer?
     trunk.fc = Identity()
-    trunk = torch.nn.DataParallel(trunk.to(device))
+    trunk = trunk.to(device)
     # trunk = trunk.to(device)
 
     # TODO: Why did he do this?
@@ -297,28 +298,35 @@ def train_app(cfg):
     # cfg.optimizer.optimizer.momentum,
     # cfg.optimizer.optimizer.weight_decay
     )
-    record_keeper, _, _ = logging_presets.get_record_keeper("logs/%s" % (experiment_name),
-                                                            "tensorboard/%s" % (experiment_name))
-    hooks = logging_presets.get_hook_container(record_keeper)
-    dataset_dict = {"samples": val_samples_dataset, "val": val_dataset}
-    model_folder = "example_saved_models/%s/" % (experiment_name)
 
-    train_class = WithAutocastTrainWithClassifier
-    # TODO: Training for metric learning
-    trainer = train_class(cfg.use_amp.use_amp.use_amp,
-                                              models,
-                                              optimizers,
-                                              batch_size,
-                                              loss_funcs,
-                                              mining_funcs,
-                                              train_dataset,
-                                              # How the data gets sampled
-                                              sampler=sampler,
-                                              lr_schedulers=schedulers,
-                                              dataloader_num_workers=cfg.trainer.trainer.batch_size,
-                                              loss_weights=loss_weights,
-                                              end_of_iteration_hook=hooks.end_of_iteration_hook
-                                              )
+    if issubclass(train_class, WithAutocastTrainWithClassifier):
+        trainer = train_class(cfg.use_amp.use_amp.use_amp,
+                                                  models,
+                                                  optimizers,
+                                                  batch_size,
+                                                  loss_funcs,
+                                                  mining_funcs,
+                                                  train_dataset,
+                                                  # How the data gets sampled
+                                                  sampler=sampler,
+                                                  lr_schedulers=schedulers,
+                                                  dataloader_num_workers=cfg.trainer.trainer.batch_size,
+                                                  loss_weights=loss_weights
+                                                  )
+
+    elif issubclass(train_class, TrainWithClassifier):
+        trainer = train_class(models,
+                                                  optimizers,
+                                                  batch_size,
+                                                  loss_funcs,
+                                                  mining_funcs,
+                                                  train_dataset,
+                                                  # How the data gets sampled
+                                                  sampler=sampler,
+                                                  lr_schedulers=schedulers,
+                                                  dataloader_num_workers=cfg.trainer.trainer.batch_size,
+                                                  loss_weights=loss_weights
+                                                  )
 
     start_timer()
     trainer.train(num_epochs=num_epochs)
@@ -327,16 +335,31 @@ def train_app(cfg):
 
 def test_autocast_equivalence():
     with initialize(version_base=None, config_path="../../config", job_name="test_app"):
-        cfg = compose(config_name="test_use_amp_true")
-        model_1, time_1, mem_1 = train_app(cfg)
-        embedder_1_params = list(model_1["embedder"].parameters())
+        # Run standard TrainWithClassifier - no amp!
+        cfg = compose(config_name="test_use_amp_false")
+        model_def, time_def, mem_def = train_app(cfg, TrainWithClassifier)
+        embedder_def_params = list(model_def["embedder"].parameters())
 
     with initialize(version_base=None, config_path="../../config", job_name="test_app"):
+        # Run WithAutoCastTrainWithClassifier, though AMP is disabled.
         cfg = compose(config_name="test_use_amp_false")
-        model_2, time_2, mem_2 = train_app(cfg)
-        embedder_2_params = list(model_2["embedder"].parameters())
+        model_amp_1, time_amp_1, mem_amp_1 = train_app(cfg, WithAutocastTrainWithClassifier)
+        embedder_amp_1_params = list(model_amp_1["embedder"].parameters())
 
-    for params_1, params_2 in zip(embedder_1_params, embedder_2_params):
+    with initialize(version_base=None, config_path="../../config", job_name="test_app"):
+        # Run WithAutoCastTrainWithClassifier, though AMP is enabled.
+        cfg = compose(config_name="test_use_amp_true")
+        model_amp_2, time_amp_2, mem_amp_2 = train_app(cfg, WithAutocastTrainWithClassifier)
+        embedder_amp_2_params = list(model_amp_2["embedder"].parameters())
+
+    for params_1, params_2 in zip(embedder_def_params, embedder_amp_1_params):
+        # Assert that TrainWithClassifier and WithAutoCastTrainWithClassifier without AMP results in same weights.
+        params_1 = params_1.cpu().detach()
+        params_2 = params_2.cpu().detach()
+        assert np.array_equal(params_1, params_2)
+
+    for params_1, params_2 in zip(embedder_amp_1_params, embedder_amp_2_params):
+        # Assert that WithAutoCastTrainWithClassifier with and without AMP results in similar results.
         params_1 = params_1.cpu().detach()
         params_2 = params_2.cpu().detach()
         total = 0
@@ -346,11 +369,11 @@ def test_autocast_equivalence():
         print(torch.numel(params_1))
         assert total > torch.numel(params_1) // 2
 
-    print(time_1)
-    print(time_2)
-    assert time_1 < time_2
+    # Assert that AMP results in better time and memory.
+    print(time_amp_1)
+    print(time_amp_2)
+    assert time_amp_2 < time_amp_1
 
-    print(mem_1)
-    print(mem_2)
-    assert mem_1 < mem_2
-    # TODO: Assert that speed for mixed precision is faster
+    print(mem_amp_1)
+    print(mem_amp_2)
+    assert mem_amp_2 < mem_amp_1
