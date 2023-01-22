@@ -1,0 +1,4 @@
+.pytest_cache
+example_saved_models
+logs
+tensorboard

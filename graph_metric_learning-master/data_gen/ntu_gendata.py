@@ -119,58 +119,65 @@ def gendata(data_path, out_path, ignored_sample_path=None, reference_sample_path
         reference_samples = []
     sample_name = []
     sample_label = []
+    j = None
 
     print(reference_samples)
-    for filename in os.listdir(data_path):
-        # Only process not-to-ignore and not-OS samples
-        if filename in ignored_samples:
-            continue
-        if part is not "sample":
-            if filename in reference_samples:
+    for ntu_path in [data_path, data_path + "120"]:
+        if "120" in ntu_path:
+            j = len(sample_name)
+        for filename in os.listdir(ntu_path):
+            # Only process not-to-ignore and not-OS samples
+            if filename in ignored_samples:
                 continue
+            if part is not "sample":
+                if filename in reference_samples:
+                    continue
 
-        action_class = int(
-            filename[filename.find('A') + 1:filename.find('A') + 4])
-        subject_id = int(
-            filename[filename.find('P') + 1:filename.find('P') + 4])
-        camera_id = int(
-            filename[filename.find('C') + 1:filename.find('C') + 4])
+            action_class = int(
+                filename[filename.find('A') + 1:filename.find('A') + 4])
+            subject_id = int(
+                filename[filename.find('P') + 1:filename.find('P') + 4])
+            camera_id = int(
+                filename[filename.find('C') + 1:filename.find('C') + 4])
 
-        if benchmark == 'xview':
-            istraining = (camera_id in training_cameras)
-        elif benchmark == 'xsub':
-            istraining = (subject_id in training_subjects)
-        elif benchmark == 'one_shot':
-            # Check if datum belongs to one-shot data or not
-            istraining = (action_class not in test_classes)
-        else:
-            raise ValueError()
-
-        #print(filename)
-
-        if part == 'train':
-            issample = istraining
-        elif part == 'val':
-            issample = not (istraining)
-        elif part == "sample":
-            issample = filename in reference_samples
-        else:
-            raise ValueError()
-
-        if issample:
-            sample_name.append(filename)
-            if part == "sample" or part == "val":
-                sample_label.append(action_class // 6)
+            if benchmark == 'xview':
+                istraining = (camera_id in training_cameras)
+            elif benchmark == 'xsub':
+                istraining = (subject_id in training_subjects)
+            elif benchmark == 'one_shot':
+                # Check if datum belongs to one-shot data or not
+                istraining = (action_class not in test_classes)
             else:
-                sample_label.append(action_class - 1)
+                raise ValueError()
+
+            #print(filename)
+
+            if part == 'train':
+                issample = istraining
+            elif part == 'val':
+                issample = not (istraining)
+            elif part == "sample":
+                issample = filename in reference_samples
+            else:
+                raise ValueError()
+
+            if issample:
+                sample_name.append(filename)
+                if part == "sample" or part == "val":
+                    sample_label.append(action_class // 6)
+                else:
+                    sample_label.append(action_class - 1)
 
     with open('{}/{}_label.pkl'.format(out_path, part), 'wb') as f:
         pickle.dump((sample_name, list(sample_label)), f)
 
     fp = np.zeros((len(sample_label), 3, max_frame, num_joint, max_body_true), dtype=np.float32)
 
+    ntu_path = data_path
     for i, s in enumerate(tqdm(sample_name)):
-        data = read_xyz(os.path.join(data_path, s), max_body=max_body_kinect, num_joint=num_joint)
+        if i == j:
+            ntu_path = data_path + "120"
+        data = read_xyz(os.path.join(ntu_path, s), max_body=max_body_kinect, num_joint=num_joint)
         # TODO: Unclear: Data gets added here
         fp[i, :, 0:data.shape[1], :, :] = data
 
@@ -183,7 +190,7 @@ def gendata(data_path, out_path, ignored_sample_path=None, reference_sample_path
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='NTU-RGB-D Data Converter.')
-    parser.add_argument('--data_path', default='../data/nturgbd_raw/nturgb+d_skeletons/')
+    parser.add_argument('--data_path', default='../data/nturgbd_raw/nturgb+d_skeletons')
     parser.add_argument('--ignored_sample_path',
                         default='../data/nturgbd_raw/samples_with_missing_skeletons.txt')
     parser.add_argument('--reference_samples_path',

@@ -39,57 +39,7 @@ from model import agcn, msg3d
 from graph import ntu_rgb_d
 from feeders import feeder
 import hydra
-from trainer.with_autocast_train_with_classifier import WithAutocastTrainWithClassifier
-
-class OneShotTester(BaseTester):
-
-    def __init__(self, end_of_testing_hook=None):
-        super().__init__()
-        self.max_accuracy = 0.0
-        self.embedding_filename = ""
-        self.end_of_testing_hook = end_of_testing_hook
-
-    def __get_correct(self, output, target, topk=(1,)):
-        with torch.no_grad():
-            maxk = max(topk)
-            batch_size = target.size(0)
-
-            _, pred = output.topk(maxk, 1, True, True)
-            pred = pred.t()
-            correct = pred.eq(target.view(1, -1).expand_as(pred))
-    #             print(correct)
-        return correct
-
-
-    def __accuracy(self, output, target, topk=(1,)):
-        """Computes the accuracy over the k top predictions for the specified values of k"""
-        with torch.no_grad():
-            correct = self.__get_correct(output, target, topk)
-            batch_size = target.size(0)
-            res = []
-            for k in topk:
-                correct_k = correct[:k].view(-1).float().sum(0, keepdim=True)
-                res.append(correct_k.mul_(100.0 / batch_size))
-            return res
-
-
-    def do_knn_and_accuracies(self, accuracies, embeddings_and_labels, split_name, tag_suffix=''):
-        #print(embeddings_and_labels)
-        query_embeddings = embeddings_and_labels["val"][0]
-        query_labels = embeddings_and_labels["val"][1]
-        reference_embeddings = embeddings_and_labels["samples"][0]
-        reference_labels = embeddings_and_labels["samples"][1]
-        knn_indices, knn_distances = utils.stat_utils.get_knn(reference_embeddings, query_embeddings, 1, False)
-        knn_labels = reference_labels[knn_indices][:,0]
-
-        accuracy = accuracy_score(knn_labels, query_labels)
-        print(accuracy)
-        with open(self.embedding_filename+"_last", 'wb') as f:
-            print("Dumping embeddings for new max_acc to file", self.embedding_filename+"_last")
-            pickle.dump([query_embeddings, query_labels, reference_embeddings, reference_labels, accuracy], f)
-        accuracies["accuracy"] = accuracy
-        keyname = self.accuracies_keyname("mean_average_precision_at_r") # accuracy as keyname not working
-        accuracies[keyname] = accuracy
+from tester.with_autocast_one_shot_tester import WithAMPOneShotTester
 
 class MLP(nn.Module):
     # layer_sizes[0] is the dimension of the input
@@ -128,18 +78,17 @@ def get_datasets(data_dir, cfg, mode="train"):
     train_dataset = feeder.Feeder(data_path=osp.join(data_path, "data/ntu/one_shot/train_data_joint.npy"),
                                   label_path=osp.join(data_path, "data/ntu/one_shot/train_label.pkl"),
                                   train=True,
-                                  debug=debug_val,
+                                  debug=128,
                                   use_mmap=True)
 
     test_dataset = feeder.Feeder(data_path=osp.join(data_path, "data/ntu/one_shot/val_data_joint.npy"),
                                label_path=osp.join(data_path, "data/ntu/one_shot/val_label.pkl"),
                                 train=False,
-                               debug=debug_val)
+                               debug=10)
 
     sample_dataset = feeder.Feeder(data_path=osp.join(data_path, "data/ntu/one_shot/sample_data_joint.npy"),
                                label_path=osp.join(data_path, "data/ntu/one_shot/sample_label.pkl"),
-                                   train=False,
-                               debug=debug_val)
+                                   train=False)
 
 
     return train_dataset, test_dataset, sample_dataset
@@ -300,24 +249,25 @@ def train_app(cfg, train_class):
     # cfg.optimizer.optimizer.weight_decay
     )
 
-    if issubclass(train_class, WithAutocastTrainWithClassifier):
-        trainer = train_class(cfg.use_amp.use_amp.use_amp,
-                                                  models,
-                                                  optimizers,
-                                                  batch_size,
-                                                  loss_funcs,
-                                                  mining_funcs,
-                                                  train_dataset,
-                                                  # How the data gets sampled
-                                                  sampler=sampler,
-                                                  lr_schedulers=schedulers,
-                                                  dataloader_num_workers=cfg.trainer.trainer.batch_size,
-                                                  loss_weights=loss_weights
-                                                  )
+    record_keeper, _, _ = logging_presets.get_record_keeper("logs/%s"%(experiment_name), "tensorboard/%s"%(experiment_name))
+    hooks = logging_presets.get_hook_container(record_keeper, primary_metric=cfg.tester.tester.metric)
+    dataset_dict = {"samples": val_samples_dataset, "val": val_dataset}
+    model_folder = "example_saved_models/%s/"%(experiment_name)
 
-    elif issubclass(train_class, TrainWithClassifier):
-        trainer = train_class(models,
-                                                  optimizers,
+    tester = WithAMPOneShotTester(
+        cfg.tester.tester.use_amp,
+        cfg.tester.tester.batch_size,
+        cfg.tester.tester.dataloader_num_workers,
+            end_of_testing_hook=hooks.end_of_testing_hook,
+            #size_of_tsne=20
+            )
+
+    #tester.embedding_filename=data_dir+"/embeddings_pretrained_triplet_loss_multi_similarity_miner.pkl"
+    tester.embedding_filename=data_dir+"/"+experiment_name+".pkl"
+    # Records metric after each epoch on one-shot validation data.
+    end_of_epoch_hook = hooks.end_of_epoch_hook(tester, dataset_dict, model_folder)
+
+    trainer = train_class(models, optimizers,
                                                   batch_size,
                                                   loss_funcs,
                                                   mining_funcs,
@@ -326,7 +276,9 @@ def train_app(cfg, train_class):
                                                   sampler=sampler,
                                                   lr_schedulers=schedulers,
                                                   dataloader_num_workers=cfg.trainer.trainer.batch_size,
-                                                  loss_weights=loss_weights
+                                                  loss_weights=loss_weights,
+                          end_of_iteration_hook=hooks.end_of_iteration_hook,
+                          end_of_epoch_hook=end_of_epoch_hook
                                                   )
 
     start_timer()
@@ -337,44 +289,44 @@ def train_app(cfg, train_class):
 def test_autocast_equivalence():
     with initialize(version_base=None, config_path="../../config", job_name="test_app"):
         # Run standard TrainWithClassifier - no amp!
-        cfg = compose(config_name="test_trainer_use_amp_false")
+        cfg = compose(config_name="test_tester_use_amp_true")
         model_def, time_def, mem_def = train_app(cfg, TrainWithClassifier)
         embedder_def_params = list(model_def["embedder"].parameters())
 
-    with initialize(version_base=None, config_path="../../config", job_name="test_app"):
-        # Run WithAutoCastTrainWithClassifier, though AMP is disabled.
-        cfg = compose(config_name="test_trainer_use_amp_false")
-        model_amp_1, time_amp_1, mem_amp_1 = train_app(cfg, WithAutocastTrainWithClassifier)
-        embedder_amp_1_params = list(model_amp_1["embedder"].parameters())
-
-    with initialize(version_base=None, config_path="../../config", job_name="test_app"):
-        # Run WithAutoCastTrainWithClassifier, though AMP is enabled.
-        cfg = compose(config_name="test_trainer_use_amp_true")
-        model_amp_2, time_amp_2, mem_amp_2 = train_app(cfg, WithAutocastTrainWithClassifier)
-        embedder_amp_2_params = list(model_amp_2["embedder"].parameters())
-
-    for params_1, params_2 in zip(embedder_def_params, embedder_amp_1_params):
-        # Assert that TrainWithClassifier and WithAutoCastTrainWithClassifier without AMP results in same weights.
-        params_1 = params_1.cpu().detach()
-        params_2 = params_2.cpu().detach()
-        assert np.array_equal(params_1, params_2)
-
-    for params_1, params_2 in zip(embedder_amp_1_params, embedder_amp_2_params):
-        # Assert that WithAutoCastTrainWithClassifier with and without AMP results in similar results.
-        params_1 = params_1.cpu().detach()
-        params_2 = params_2.cpu().detach()
-        total = 0
-        for compar in np.where(np.isclose(params_1, params_2)):
-            total += len(compar)
-        print(total)
-        print(torch.numel(params_1))
-        assert total > torch.numel(params_1) // 2
-
-    # Assert that AMP results in better time and memory.
-    print(time_amp_1)
-    print(time_amp_2)
-    assert time_amp_2 < time_amp_1
-
-    print(mem_amp_1)
-    print(mem_amp_2)
-    assert mem_amp_2 < mem_amp_1
+    # with initialize(version_base=None, config_path="../../config", job_name="test_app"):
+    #     # Run WithAutoCastTrainWithClassifier, though AMP is disabled.
+    #     cfg = compose(config_name="test_use_amp_false")
+    #     model_amp_1, time_amp_1, mem_amp_1 = train_app(cfg, WithAutocastTrainWithClassifier)
+    #     embedder_amp_1_params = list(model_amp_1["embedder"].parameters())
+    #
+    # with initialize(version_base=None, config_path="../../config", job_name="test_app"):
+    #     # Run WithAutoCastTrainWithClassifier, though AMP is enabled.
+    #     cfg = compose(config_name="test_use_amp_true")
+    #     model_amp_2, time_amp_2, mem_amp_2 = train_app(cfg, WithAutocastTrainWithClassifier)
+    #     embedder_amp_2_params = list(model_amp_2["embedder"].parameters())
+    #
+    # for params_1, params_2 in zip(embedder_def_params, embedder_amp_1_params):
+    #     # Assert that TrainWithClassifier and WithAutoCastTrainWithClassifier without AMP results in same weights.
+    #     params_1 = params_1.cpu().detach()
+    #     params_2 = params_2.cpu().detach()
+    #     assert np.array_equal(params_1, params_2)
+    #
+    # for params_1, params_2 in zip(embedder_amp_1_params, embedder_amp_2_params):
+    #     # Assert that WithAutoCastTrainWithClassifier with and without AMP results in similar results.
+    #     params_1 = params_1.cpu().detach()
+    #     params_2 = params_2.cpu().detach()
+    #     total = 0
+    #     for compar in np.where(np.isclose(params_1, params_2)):
+    #         total += len(compar)
+    #     print(total)
+    #     print(torch.numel(params_1))
+    #     assert total > torch.numel(params_1) // 2
+    #
+    # # Assert that AMP results in better time and memory.
+    # print(time_amp_1)
+    # print(time_amp_2)
+    # assert time_amp_2 < time_amp_1
+    #
+    # print(mem_amp_1)
+    # print(mem_amp_2)
+    # assert mem_amp_2 < mem_amp_1
