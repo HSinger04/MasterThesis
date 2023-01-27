@@ -1,7 +1,7 @@
 import sys
 from os.path import dirname, abspath
 # e.g. import src module to test dir where src and test are siblings
-sys.path.append(dirname(dirname(abspath(__file__))))
+sys.path.append(dirname(dirname(dirname(abspath(__file__)))))
 
 import time, gc
 

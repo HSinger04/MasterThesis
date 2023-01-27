@@ -1,7 +1,8 @@
+import random
 import sys
 from os.path import dirname, abspath
 # e.g. import src module to test dir where src and test are siblings
-sys.path.append(dirname(dirname(abspath(__file__))))
+sys.path.append(dirname(dirname(dirname(abspath(__file__)))))
 
 import time, gc
 
@@ -22,24 +23,28 @@ from omegaconf import OmegaConf
 import pytorch_metric_learning
 from pytorch_metric_learning.testers.base_tester import BaseTester
 from pytorch_metric_learning.trainers import TrainWithClassifier
+from scipy.spatial import distance_matrix
 
 logging.info("pytorch-metric-learning VERSION %s"%pytorch_metric_learning.__version__)
 logging.info("record_keeper VERSION %s"%record_keeper.__version__)
 
 from sklearn.metrics import accuracy_score
+from sklearn.neighbors import KNeighborsClassifier
 #from efficientnet_pytorch import EfficientNet
 import torch
+from torch.utils.data import Dataset
 import numpy as np
 import pickle
 
 import hydra
 from omegaconf import DictConfig
 
+from numpy.testing import assert_almost_equal
 from model import agcn, msg3d
 from graph import ntu_rgb_d
 from feeders import feeder
 import hydra
-from tester.with_autocast_one_shot_tester import WithAMPOneShotTester
+from tester.with_autocast_one_shot_tester import WithAMPGlobalEmbeddingSpaceTester
 
 class MLP(nn.Module):
     # layer_sizes[0] is the dimension of the input
@@ -62,36 +67,28 @@ class MLP(nn.Module):
     def forward(self, x):
         return self.net(x)
 
-class Identity(nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, x):
-        return x
-
 def get_datasets(data_dir, cfg, mode="train"):
     data_path = "/home/work/PycharmProjects/MA/MasterThesis/graph_metric_learning-master"
 
     debug_val = 128
 
-    train_dataset = feeder.Feeder(data_path=osp.join(data_path, "data/ntu/one_shot/train_data_joint.npy"),
-                                  label_path=osp.join(data_path, "data/ntu/one_shot/train_label.pkl"),
-                                  train=True,
-                                  debug=128,
-                                  use_mmap=True)
+    # train_dataset = feeder.Feeder(data_path=osp.join(data_path, "data/ntu/one_shot/train_data_joint.npy"),
+    #                               label_path=osp.join(data_path, "data/ntu/one_shot/train_label.pkl"),
+    #                               train=True,
+    #                               debug=128,
+    #                               use_mmap=True)
 
     test_dataset = feeder.Feeder(data_path=osp.join(data_path, "data/ntu/one_shot/val_data_joint.npy"),
                                label_path=osp.join(data_path, "data/ntu/one_shot/val_label.pkl"),
                                 train=False,
-                               debug=10)
+                               debug=8)
 
     sample_dataset = feeder.Feeder(data_path=osp.join(data_path, "data/ntu/one_shot/sample_data_joint.npy"),
                                label_path=osp.join(data_path, "data/ntu/one_shot/sample_label.pkl"),
                                    train=False)
 
 
-    return train_dataset, test_dataset, sample_dataset
+    return test_dataset, sample_dataset
 
 # Timing utilities
 start_time = None
@@ -109,189 +106,103 @@ def get_time_and_memory():
     end_time = time.time()
     return end_time - start_time, torch.cuda.max_memory_allocated()
 
-def train_app(cfg, train_class):
-    # reprodcibile
-    np.random.seed(42)
-    torch.manual_seed(42)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+class TestAMPDataset(Dataset):
 
-    # Set trunk model and replace the softmax layer with an identity function
-    # trunk = torchvision.models.__dict__[cfg.model.model.model_name](pretrained=cfg.model.model.pretrained)
-    # graph = ntu_rgb_d.Graph()
-    # trunk = agcn.Model(graph="graph.ntu_rgb_d.Graph")
-    trunk = msg3d.Model(graph="graph.ntu_rgb_d.AdjMatrixGraph", num_class=100, num_point=25, num_person=2,
-                        num_gcn_scales=13, num_g3d_scales=6)
+    def __init__(self, data, label):
+        self.data = np.float32(data)
+        self.label = label
 
-    # resnet18(pretrained=True)
-    # trunk = models.alexnet(pretrained=True)
-    # trunk = models.resnet50(pretrained=True)
-    # trunk = models.resnet152(pretrained=True)
-    # trunk = models.wide_resnet50_2(pretrained=True)
-    # trunk = EfficientNet.from_pretrained('efficientnet-b2')
-    trunk_output_size = trunk.fc.in_features
-    # TODO: @Raphael: Is this the last layer?
-    trunk.fc = Identity()
-    trunk = trunk.to(device)
-    # trunk = trunk.to(device)
+    def __len__(self):
+        return len(self.data)
 
-    # TODO: Why did he do this?
-    embedder = MLP([trunk_output_size, cfg.embedder.embedder.size]).to(device)
-    # embedder = MLP([trunk_output_size, cfg.embedder.embedder.size]).to(device)
-    classifier = MLP([cfg.embedder.embedder.size, cfg.embedder.embedder.class_out_size]).to(
-        device)
-    # classifier = MLP([cfg.embedder.embedder.size, cfg.embedder.embedder.class_out_size]).to(device)
+    def __getitem__(self, idx):
+        return self.data[idx], self.label[idx]
 
-    # Set optimizers
-    if cfg.optimizer.optimizer.name == "sdg":
-        trunk_optimizer = torch.optim.SGD(trunk.parameters(), lr=cfg.optimizer.optimizer.lr,
-                                          momentum=cfg.optimizer.optimizer.momentum,
-                                          weight_decay=cfg.optimizer.optimizer.weight_decay)
-        embedder_optimizer = torch.optim.SGD(embedder.parameters(), lr=cfg.optimizer.optimizer.lr,
-                                             momentum=cfg.optimizer.optimizer.momentum,
-                                             weight_decay=cfg.optimizer.optimizer.weight_decay)
-        classifier_optimizer = torch.optim.SGD(classifier.parameters(), lr=cfg.optimizer.optimizer.lr,
-                                               momentum=cfg.optimizer.optimizer.momentum,
-                                               weight_decay=cfg.optimizer.optimizer.weight_decay)
-    elif cfg.optimizer.optimizer.name == "rmsprop":
-        trunk_optimizer = torch.optim.RMSprop(trunk.parameters(), lr=cfg.optimizer.optimizer.lr,
-                                              momentum=cfg.optimizer.optimizer.momentum,
-                                              weight_decay=cfg.optimizer.optimizer.weight_decay)
-        embedder_optimizer = torch.optim.RMSprop(embedder.parameters(), lr=cfg.optimizer.optimizer.lr,
-                                                 momentum=cfg.optimizer.optimizer.momentum,
-                                                 weight_decay=cfg.optimizer.optimizer.weight_decay)
-        classifier_optimizer = torch.optim.RMSprop(classifier.parameters(), lr=cfg.optimizer.optimizer.lr,
-                                                   momentum=cfg.optimizer.optimizer.momentum,
-                                                   weight_decay=cfg.optimizer.optimizer.weight_decay)
 
-    # Set the datasets
-    data_dir = cfg.dataset.dataset.data_dir
-    print("Data dir: " + data_dir)
+def train_app(cfg, use_amp, base_class, num_false_tests=None, num_tests=None, embed_dim=None):
+    if num_false_tests is None:
+        num_false_tests = random.randint(1, 10)
+    num_samples = random.randint(2, 10)
+    if num_tests is None:
+        num_tests = num_false_tests * random.randint(1, 10)
+    if embed_dim is None:
+        embed_dim = random.randint(1, 10)
 
-    train_dataset, val_dataset, val_samples_dataset = get_datasets(data_dir, cfg, mode=cfg.mode.mode.type)
-    print("Trainset: ", len(train_dataset), "Testset: ", len(val_dataset), "Samplesset: ", len(val_samples_dataset))
+    print("Num false tests: " + str(num_false_tests))
+    print("Num tests: " + str(num_tests))
+    print("Num samples: " + str(num_samples))
 
-    # Set the loss function
-    if cfg.embedder_loss.embedder_loss.name == "margin_loss":
-        loss = losses.MarginLoss(margin=cfg.embedder_loss.embedder_loss.margin, nu=cfg.embedder_loss.embedder_loss.nu,
-                                 beta=cfg.embedder_loss.embedder_loss.beta)
-    if cfg.embedder_loss.embedder_loss.name == "triplet_margin":
-        loss = losses.TripletMarginLoss(margin=cfg.embedder_loss.embedder_loss.margin)
-    if cfg.embedder_loss.embedder_loss.name == "multi_similarity":
-        loss = losses.MultiSimilarityLoss(alpha=cfg.embedder_loss.embedder_loss.alpha,
-                                          beta=cfg.embedder_loss.embedder_loss.beta,
-                                          base=cfg.embedder_loss.embedder_loss.base)
 
-    # Set the classification loss:
-    classification_loss = torch.nn.CrossEntropyLoss()
+    samples = np.random.rand(num_samples, embed_dim)
+    samples[-1] = -1
+    old_samples_labels = np.array(list(range(num_samples)))
+    test = np.random.rand(num_tests, embed_dim)
 
-    # Set the mining function
+    samples_labels = old_samples_labels.copy()
+    test_labels = KNeighborsClassifier(n_neighbors=1).fit(samples, old_samples_labels).predict(test)
+    idxs = np.random.choice(range(num_tests), num_false_tests, replace=False)
+    for idx in idxs:
+        test_labels[idx] = (test_labels[idx] + 1) % num_samples
+    if base_class == "Identity":
+        model = torch.nn.Sequential(torch.nn.Identity())
+    elif base_class == "Matrix":
+        model = torch.nn.Sequential(torch.nn.Linear(embed_dim, 200))
+        for _ in range(9):
+            model.append(torch.nn.Linear(200, 200))
+    else:
+        ValueError()
+    model.to(device="cuda")
 
-    if cfg.miner.miner.name == "triplet_margin":
-        # miner = miners.TripletMarginMiner(margin=0.2)
-        miner = miners.TripletMarginMiner(margin=cfg.miner.miner.margin)
-    if cfg.miner.miner.name == "multi_similarity":
-        miner = miners.MultiSimilarityMiner(epsilon=cfg.miner.miner.epsilon)
-        # miner = miners.MultiSimilarityMiner(epsilon=0.05)
-
-    # loss = losses.CrossBatchMemory(loss, cfg.embedder.embedder.size, memory_size=1024, miner=miner)
-    # extra_str = "cb_mem"
-    extra_str = ""
-
-    batch_size = cfg.trainer.trainer.batch_size
-    # 100 by default
-    num_epochs = cfg.trainer.trainer.num_epochs
-    iterations_per_epoch = cfg.trainer.trainer.iterations_per_epoch
-    # Set the dataloader sampler
-    sampler = samplers.MPerClassSampler(train_dataset.label, m=4, length_before_new_iter=len(train_dataset))
-    # sampler = samplers.MPerClassSampler(train_dataset.label, m=4, length_before_new_iter=iterations_per_epoch)
-
-    # Package the above stuff into dictionaries.
-    models = {"trunk": trunk, "embedder": embedder, "classifier": classifier}
-    optimizers = {"trunk_optimizer": trunk_optimizer, "embedder_optimizer": embedder_optimizer,
-                  "classifier_optimizer": classifier_optimizer}
-    loss_funcs = {"metric_loss": loss, "classifier_loss": classification_loss}
-    mining_funcs = {"tuple_miner": miner}
-
-    # We can specify loss weights if we want to. This is optional
-    loss_weights = {"metric_loss": cfg.loss.loss.metric_loss, "classifier_loss": cfg.loss.loss.classifier_loss}
-
-    schedulers = {
-        # "metric_loss_scheduler_by_epoch": torch.optim.lr_scheduler.StepLR(classifier_optimizer, cfg.optimizer.scheduler.step_size, gamma=cfg.optimizer.scheduler.gamma),
-        "embedder_scheduler_by_epoch": torch.optim.lr_scheduler.StepLR(embedder_optimizer,
-                                                                       cfg.optimizer.scheduler.step_size,
-                                                                       gamma=cfg.optimizer.scheduler.gamma),
-        "classifier_scheduler_by_epoch": torch.optim.lr_scheduler.StepLR(classifier_optimizer,
-                                                                         cfg.optimizer.scheduler.step_size,
-                                                                         gamma=cfg.optimizer.scheduler.gamma),
-        "trunk_scheduler_by_epoch": torch.optim.lr_scheduler.StepLR(embedder_optimizer,
-                                                                    cfg.optimizer.scheduler.step_size,
-                                                                    gamma=cfg.optimizer.scheduler.gamma),
-    }
-
-    experiment_name = "%s_model_%s_cl_%s_ml_%s_miner_%s_mix_ml_%02.2f_mix_cl_%02.2f_resize_%d_emb_size_%d_class_size_%d_opt_%s_lr_%02.2f_%s" % (
-    cfg.dataset.dataset.name,
-    cfg.model.model.model_name,
-    "cross_entropy",
-    cfg.embedder_loss.embedder_loss.name,
-    cfg.miner.miner.name,
-    cfg.loss.loss.metric_loss,
-    cfg.loss.loss.classifier_loss,
-    cfg.transform.transform.transform_resize,
-    cfg.embedder.embedder.size,
-    cfg.embedder.embedder.class_out_size,
-    cfg.optimizer.optimizer.name,
-    cfg.optimizer.optimizer.lr,
-    extra_str
-    # cfg.optimizer.optimizer.momentum,
-    # cfg.optimizer.optimizer.weight_decay
-    )
-
-    record_keeper, _, _ = logging_presets.get_record_keeper("logs/%s"%(experiment_name), "tensorboard/%s"%(experiment_name))
-    hooks = logging_presets.get_hook_container(record_keeper, primary_metric=cfg.tester.tester.metric)
+    val_samples_dataset = TestAMPDataset(samples, samples_labels)
+    #val_dataset =TestAMPDataset(samples, old_samples_labels)
+    val_dataset = TestAMPDataset(test, test_labels)
     dataset_dict = {"samples": val_samples_dataset, "val": val_dataset}
-    model_folder = "example_saved_models/%s/"%(experiment_name)
-
-    tester = WithAMPOneShotTester(
-        cfg.tester.tester.use_amp,
-        cfg.tester.tester.batch_size,
-        cfg.tester.tester.dataloader_num_workers,
-            end_of_testing_hook=hooks.end_of_testing_hook,
-            #size_of_tsne=20
-            )
-
-    #tester.embedding_filename=data_dir+"/embeddings_pretrained_triplet_loss_multi_similarity_miner.pkl"
-    tester.embedding_filename=data_dir+"/"+experiment_name+".pkl"
-    # Records metric after each epoch on one-shot validation data.
-    end_of_epoch_hook = hooks.end_of_epoch_hook(tester, dataset_dict, model_folder)
-
-    trainer = train_class(models, optimizers,
-                                                  batch_size,
-                                                  loss_funcs,
-                                                  mining_funcs,
-                                                  train_dataset,
-                                                  # How the data gets sampled
-                                                  sampler=sampler,
-                                                  lr_schedulers=schedulers,
-                                                  dataloader_num_workers=cfg.trainer.trainer.batch_size,
-                                                  loss_weights=loss_weights,
-                          end_of_iteration_hook=hooks.end_of_iteration_hook,
-                          end_of_epoch_hook=end_of_epoch_hook
-                                                  )
 
     start_timer()
-    trainer.train(num_epochs=num_epochs)
+    tester = WithAMPGlobalEmbeddingSpaceTester(use_amp, normalize_embeddings=False,
+                                                batch_size=96000, dataloader_num_workers=cfg.tester.tester.dataloader_num_workers,
+                                                accuracy_calculator=utils.accuracy_calculator.AccuracyCalculator(include=("precision_at_1", )))
     time, mem = get_time_and_memory()
-    return models, time, mem
+    test_result = tester.test(dataset_dict, 0, model
+                , splits_to_eval=[('val', ['samples'])]
+    )
+    actual_acc = test_result["val"]["precision_at_1_level0"]
+    desired_acc = 1 - (num_false_tests / num_tests)
+    return actual_acc, desired_acc, time, mem
 
 def test_autocast_equivalence():
+    num_false_tests = 10
+    num_tests = 128000 * num_false_tests
+
     with initialize(version_base=None, config_path="../../config", job_name="test_app"):
         # Run standard TrainWithClassifier - no amp!
         cfg = compose(config_name="test_tester_use_amp_true")
-        model_def, time_def, mem_def = train_app(cfg, TrainWithClassifier)
-        embedder_def_params = list(model_def["embedder"].parameters())
+        # Confirm that accuracy gets measured correctly across multiple random settings.
+        for _ in range(5):
+            actual_acc, desired_acc, _, _ = train_app(cfg, False, "Identity")
+            assert_almost_equal(actual_acc, desired_acc)
+
+        # Confirm that it also works correctly with amp
+        for _ in range(5):
+            actual_acc, desired_acc, _, _ = train_app(cfg, True, "Identity")
+            assert_almost_equal(actual_acc, desired_acc)
+
+
+        _, _, time_no_amp, mem_no_amp = train_app(cfg, False, "Matrix", num_false_tests, num_tests, 100)
+        _, _, time_with_amp, mem_with_amp = train_app(cfg, True, "Matrix", num_false_tests, num_tests, 100)
+
+        print(mem_no_amp)
+        print(mem_with_amp)
+        assert mem_with_amp <= mem_no_amp
+
+        print(time_no_amp)
+        print(time_with_amp)
+        assert time_with_amp < time_no_amp
+
+
+
+
 
     # with initialize(version_base=None, config_path="../../config", job_name="test_app"):
     #     # Run WithAutoCastTrainWithClassifier, though AMP is disabled.
@@ -330,3 +241,6 @@ def test_autocast_equivalence():
     # print(mem_amp_1)
     # print(mem_amp_2)
     # assert mem_amp_2 < mem_amp_1
+
+if __name__ == '__main__':
+    test_autocast_equivalence()

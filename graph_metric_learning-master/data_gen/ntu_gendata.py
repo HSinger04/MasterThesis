@@ -129,7 +129,7 @@ def gendata(data_path, out_path, ignored_sample_path=None, reference_sample_path
             # Only process not-to-ignore and not-OS samples
             if filename in ignored_samples:
                 continue
-            if part is not "sample":
+            if not part == "sample":
                 if filename in reference_samples:
                     continue
 

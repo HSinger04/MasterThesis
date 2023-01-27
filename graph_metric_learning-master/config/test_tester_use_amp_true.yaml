@@ -7,7 +7,7 @@ defaults:
   - embedder_loss: triplet_margin
   - trainer: tester
   - loss: default
-  - embedder: default
+  - embedder: debug
   - transform: minimal
   - tester: debug
   - use_amp: amp_true
