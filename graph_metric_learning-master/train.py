@@ -202,20 +202,20 @@ def train_app(cfg):
     print(cfg)
 
     # Set the datasets
-    data_dir = cfg.dataset.dataset.data_dir
+    data_dir = cfg.dataset.data_dir
     print("Data dir: "+data_dir)
 
-    ds_mem_limits = cfg.dataset.dataset.dataset_split.mem_limits
+    ds_mem_limits = cfg.dataset.dataset_split.mem_limits
     mem_limits = {"val_samples": ds_mem_limits.val_samples, "val": ds_mem_limits.val, "train": ds_mem_limits.train}
 
-    train_dataset, val_dataset, val_samples_dataset = get_datasets(cfg.dataset.dataset.dataset_split.val_classes,
-                                                                   mem_limits, debug=cfg.dataset.dataset.debug)
+    train_dataset, val_dataset, val_samples_dataset = get_datasets(cfg.dataset.dataset_split.val_classes,
+                                                                   mem_limits, debug=cfg.dataset.debug)
     print("Trainset: ",len(train_dataset), "Testset: ",len(val_dataset), "Samplesset: ",len(val_samples_dataset))
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Set trunk model and replace the softmax layer with an identity function
-    #trunk = torchvision.models.__dict__[cfg.model.model.model_name](pretrained=cfg.model.model.pretrained)
+    #trunk = torchvision.models.__dict__[cfg.model.model_name](pretrained=cfg.model.pretrained)
     #graph = ntu_rgb_d.Graph()
     #trunk = agcn.Model(graph="graph.ntu_rgb_d.Graph")
     # TODO: Import STTformer or any other specified model instead
@@ -233,11 +233,11 @@ def train_app(cfg):
     trunk = trunk.to(device)
     # trunk = trunk.to(device)
 
-    embedder = MLP([trunk_output_size, cfg.embedder.embedder.size]).to(device)
-    # embedder = MLP([trunk_output_size, cfg.embedder.embedder.size]).to(device)
+    embedder = MLP([trunk_output_size, cfg.embedder.size]).to(device)
+    # embedder = MLP([trunk_output_size, cfg.embedder.size]).to(device)
     # Set output size to the number of classes in training data
-    classifier = MLP([cfg.embedder.embedder.size, train_dataset.label.max() + 1]).to(device)
-    # classifier = MLP([cfg.embedder.embedder.size, cfg.embedder.embedder.class_out_size]).to(device)
+    classifier = MLP([cfg.embedder.size, train_dataset.label.max() + 1]).to(device)
+    # classifier = MLP([cfg.embedder.size, cfg.embedder.class_out_size]).to(device)
 
     # Set optimizers
     if cfg.optimizer.optimizer.name == "sdg":
@@ -250,32 +250,32 @@ def train_app(cfg):
         classifier_optimizer = torch.optim.RMSprop(classifier.parameters(), lr=cfg.optimizer.optimizer.lr, momentum=cfg.optimizer.optimizer.momentum, weight_decay=cfg.optimizer.optimizer.weight_decay)
 
     # Set the loss function
-    if cfg.embedder_loss.embedder_loss.name == "margin_loss":
-        loss = losses.MarginLoss(margin=cfg.embedder_loss.embedder_loss.margin,nu=cfg.embedder_loss.embedder_loss.nu,beta=cfg.embedder_loss.embedder_loss.beta)
-    if cfg.embedder_loss.embedder_loss.name == "triplet_margin":
-        loss = losses.TripletMarginLoss(margin=cfg.embedder_loss.embedder_loss.margin)
-    if cfg.embedder_loss.embedder_loss.name == "multi_similarity":
-        loss = losses.MultiSimilarityLoss(alpha=cfg.embedder_loss.embedder_loss.alpha, beta=cfg.embedder_loss.embedder_loss.beta, base=cfg.embedder_loss.embedder_loss.base)
+    if cfg.embedder_loss.name == "margin_loss":
+        loss = losses.MarginLoss(margin=cfg.embedder_loss.margin,nu=cfg.embedder_loss.nu,beta=cfg.embedder_loss.beta)
+    if cfg.embedder_loss.name == "triplet_margin":
+        loss = losses.TripletMarginLoss(margin=cfg.embedder_loss.margin)
+    if cfg.embedder_loss.name == "multi_similarity":
+        loss = losses.MultiSimilarityLoss(alpha=cfg.embedder_loss.alpha, beta=cfg.embedder_loss.beta, base=cfg.embedder_loss.base)
 
     # Set the classification loss:
     classification_loss = torch.nn.CrossEntropyLoss()
 
     # Set the mining function
 
-    if cfg.miner.miner.name == "triplet_margin":
+    if cfg.miner.name == "triplet_margin":
         #miner = miners.TripletMarginMiner(margin=0.2)
-        miner = miners.TripletMarginMiner(margin=cfg.miner.miner.margin)
-    if cfg.miner.miner.name == "multi_similarity":
-        miner = miners.MultiSimilarityMiner(epsilon=cfg.miner.miner.epsilon)
+        miner = miners.TripletMarginMiner(margin=cfg.miner.margin)
+    if cfg.miner.name == "multi_similarity":
+        miner = miners.MultiSimilarityMiner(epsilon=cfg.miner.epsilon)
         #miner = miners.MultiSimilarityMiner(epsilon=0.05)
 
-    #loss = losses.CrossBatchMemory(loss, cfg.embedder.embedder.size, memory_size=1024, miner=miner) 
+    #loss = losses.CrossBatchMemory(loss, cfg.embedder.size, memory_size=1024, miner=miner) 
     #extra_str = "cb_mem"
     extra_str = ""
 
-    batch_size = cfg.trainer.trainer.batch_size
+    batch_size = cfg.trainer.batch_size
     # 100 by default
-    num_epochs = cfg.trainer.trainer.num_epochs
+    num_epochs = cfg.trainer.num_epochs
     # Set the dataloader sampler
     sampler = samplers.MPerClassSampler(train_dataset.label, m=4, length_before_new_iter=len(train_dataset))
     
@@ -288,10 +288,10 @@ def train_app(cfg):
     mining_funcs = {"tuple_miner": miner}
 
     # We can specify loss weights if we want to. This is optional
-    loss_weights = {"metric_loss": cfg.loss.loss.metric_loss, "classifier_loss": cfg.loss.loss.classifier_loss}
+    loss_weights = {"metric_loss": cfg.loss.metric_loss, "classifier_loss": cfg.loss.classifier_loss}
 
     schedulers = None
-    if not cfg.model.model.model_name == "sttformer":
+    if not cfg.model.model_name == "sttformer":
         schedulers = {
                 #"metric_loss_scheduler_by_epoch": torch.optim.lr_scheduler.StepLR(classifier_optimizer, cfg.optimizer.scheduler.step_size, gamma=cfg.optimizer.scheduler.gamma),
                 "embedder_scheduler_by_epoch": torch.optim.lr_scheduler.StepLR(embedder_optimizer, cfg.optimizer.scheduler.step_size, gamma=cfg.optimizer.scheduler.gamma),
@@ -299,31 +299,31 @@ def train_app(cfg):
                 "trunk_scheduler_by_epoch": torch.optim.lr_scheduler.StepLR(embedder_optimizer, cfg.optimizer.scheduler.step_size, gamma=cfg.optimizer.scheduler.gamma),
                 }
 
-    experiment_name = "%s_model_%s_cl_%s_ml_%s_miner_%s_mix_ml_%02.2f_mix_cl_%02.2f_resize_%d_emb_size_%d_class_size_%d_opt_%s_lr_%02.2f_%s"%(cfg.dataset.dataset.name,
-                                                                                                  cfg.model.model.model_name, 
+    experiment_name = "%s_model_%s_cl_%s_ml_%s_miner_%s_mix_ml_%02.2f_mix_cl_%02.2f_resize_%d_emb_size_%d_class_size_%d_opt_%s_lr_%02.2f_%s"%(cfg.dataset.name,
+                                                                                                  cfg.model.model_name, 
                                                                                                   "cross_entropy", 
-                                                                                                  cfg.embedder_loss.embedder_loss.name, 
-                                                                                                  cfg.miner.miner.name, 
-                                                                                                  cfg.loss.loss.metric_loss, 
-                                                                                                  cfg.loss.loss.classifier_loss,
-                                                                                                  cfg.transform.transform.transform_resize,
-                                                                                                  cfg.embedder.embedder.size,
-                                                                                                  cfg.embedder.embedder.class_out_size,
+                                                                                                  cfg.embedder_loss.name, 
+                                                                                                  cfg.miner.name, 
+                                                                                                  cfg.loss.metric_loss, 
+                                                                                                  cfg.loss.classifier_loss,
+                                                                                                  cfg.transform.transform_resize,
+                                                                                                  cfg.embedder.size,
+                                                                                                  cfg.embedder.class_out_size,
                                                                                                   cfg.optimizer.optimizer.name,
                                                                                                   cfg.optimizer.optimizer.lr,
                                                                                                   extra_str
                                                                                                   )
     record_keeper, _, _ = logging_presets.get_record_keeper("logs/%s"%(experiment_name), "tensorboard/%s"%(experiment_name))
-    hooks = logging_presets.get_hook_container(record_keeper, primary_metric=cfg.tester.tester.metric)
+    hooks = logging_presets.get_hook_container(record_keeper, primary_metric=cfg.tester.metric)
     dataset_dict = {"samples": val_samples_dataset, "val": val_dataset}
     model_folder = "example_saved_models/%s/"%(experiment_name)
 
     # Create the tester
     # TODO: Change back
     tester = WithAMPGlobalEmbeddingSpaceTester(
-        cfg.tester.tester.use_amp,
-        cfg.tester.tester.batch_size,
-        cfg.tester.tester.dataloader_num_workers,
+        cfg.tester.use_amp,
+        cfg.tester.batch_size,
+        cfg.tester.dataloader_num_workers,
             end_of_testing_hook=hooks.end_of_testing_hook, 
             #size_of_tsne=20
             )
@@ -331,25 +331,25 @@ def train_app(cfg):
     tester.embedding_filename=data_dir+"/"+experiment_name+".pkl"
     # Records metric after each epoch on one-shot validation data.
     orig_end_of_epoch_hook = hooks.end_of_epoch_hook(tester, dataset_dict, model_folder)
-    end_of_epoch_hook = get_end_of_epoch_hook(orig_end_of_epoch_hook, cfg.model.model.model_name, **cfg.end_of_epoch_hook.kwargs)
+    end_of_epoch_hook = get_end_of_epoch_hook(orig_end_of_epoch_hook, cfg.model.model_name, **cfg.end_of_epoch_hook.kwargs)
     # Training for metric learning
-    trainer = WithAutocastTrainWithClassifier(cfg.trainer.trainer.use_amp, models,
+    trainer = WithAutocastTrainWithClassifier(cfg.trainer.use_amp, models,
             optimizers,
             batch_size,
             loss_funcs,
             mining_funcs,
             train_dataset,
-            iterations_per_epoch=cfg.trainer.trainer.iterations_per_epoch,
+            iterations_per_epoch=cfg.trainer.iterations_per_epoch,
             # How the data gets sampled
             sampler=sampler,
             lr_schedulers=schedulers,
-            dataloader_num_workers=cfg.trainer.trainer.dataloader_num_workers,
+            dataloader_num_workers=cfg.trainer.dataloader_num_workers,
             loss_weights=loss_weights,
             end_of_iteration_hook=hooks.end_of_iteration_hook,
             end_of_epoch_hook=end_of_epoch_hook
             )
 
-    if cfg.model.model.model_name == "sttformer":
+    if cfg.model.model_name == "sttformer":
         assert cfg.end_of_epoch_hook.kwargs.base_lr == cfg.optimizer.optimizer.lr
         stt_hook(trainer, **cfg.end_of_epoch_hook.kwargs)
 

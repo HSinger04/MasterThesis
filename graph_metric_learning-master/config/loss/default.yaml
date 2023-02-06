@@ -1,3 +1,2 @@
-loss:
-  classifier_loss: 0.5
-  metric_loss: 0.5
+classifier_loss: 0.5
+metric_loss: 0.5

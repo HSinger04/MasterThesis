@@ -1,3 +1,2 @@
-embedder:
-  size: 16
-  class_out_size: 100
+size: 16
+class_out_size: 100

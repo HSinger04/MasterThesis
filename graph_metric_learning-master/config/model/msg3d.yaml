@@ -1,3 +1,2 @@
-model:
-  model_name: "msg3d"
-  pretrained: False
+model_name: "msg3d"
+pretrained: False

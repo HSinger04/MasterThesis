@@ -1,3 +1,2 @@
-model:
-  model_name: "sttformer"
-  pretrained: False
+model_name: "sttformer"
+pretrained: False

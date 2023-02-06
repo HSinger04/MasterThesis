@@ -1,3 +1,2 @@
-miner:
-  name: "triplet_margin"
-  margin: 0.2 
+name: "triplet_margin"
+margin: 0.2

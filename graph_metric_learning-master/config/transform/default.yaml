@@ -1,4 +1,3 @@
-transform:
-  resize: 120
-  rotate: 10
-  resize_h: 25
+resize: 120
+rotate: 10
+resize_h: 25

@@ -1,3 +1,2 @@
-miner:
-  name: "multi_similarity"
-  epsilon: 0.1
+name: "multi_similarity"
+epsilon: 0.1

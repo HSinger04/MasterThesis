@@ -1,18 +1,17 @@
-dataset:
-  name: "NTU_2sAGCN"
-  #data_dir: "/ntu/ntu_no_border/one_shot_val"
-  data_dir: "/ntu/ntu_gcn/"
-  dataset_split:
-    val_classes:
-      - 14
-      - 62
-      - 110
-    mem_limits:
-      val_samples:
-        100000
-      val:
-        100000
-      train:
-        33333
-  debug:
-    true
+name: "NTU_2sAGCN"
+#data_dir: "/ntu/ntu_no_border/one_shot_val"
+data_dir: "/ntu/ntu_gcn/"
+dataset_split:
+  val_classes:
+    - 14
+    - 62
+    - 110
+  mem_limits:
+    val_samples:
+      100000
+    val:
+      100000
+    train:
+      33333
+debug:
+  true

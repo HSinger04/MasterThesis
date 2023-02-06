@@ -1,3 +1,2 @@
-model:
-  model_name: "agcn"
-  pretrained: False
+model_name: "agcn"
+pretrained: False

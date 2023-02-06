@@ -1,4 +1,3 @@
-tester:
-  use_amp: true
-  batch_size: 16
-  dataloader_num_workers: 4
+use_amp: true
+batch_size: 16
+dataloader_num_workers: 4

@@ -1,4 +1,3 @@
-trainer:
-  num_epochs: 100
-  batch_size: 4
-  iterations_per_epoch: 1000
+num_epochs: 100
+batch_size: 4
+iterations_per_epoch: 1000
