@@ -28,10 +28,11 @@ import hydra
 from omegaconf import DictConfig
 
 from model import agcn, msg3d
+from MasterThesis.STTTFormer.model.sttformer import Model
 from graph import ntu_rgb_d
 from feeders import feeder
 from trainer.with_autocast_train_with_classifier import WithAutocastTrainWithClassifier
-from tester.with_autocast_one_shot_tester import WithAMPOneShotTester
+from tester.with_autocast_one_shot_tester import WithAMPGlobalEmbeddingSpaceTester
 
 # reprodcibile
 np.random.seed(42)
@@ -158,6 +159,43 @@ def get_datasets(val_classes, mem_limits={"val_samples": 0, "val": 0, "train": 0
 
     return train_dataset, val_dataset, val_samples_dataset
 
+def stt_hook(trainer, warm_up_epoch, base_lr, lr_decay_rate, step):
+    # TODO: Gotta see if I do it for all optimizers or not
+    for optimizer in trainer.optimizers.values():
+        if isinstance(optimizer, torch.optim.SGD) or isinstance(optimizer, torch.optim.Adam):
+            epoch = 0
+            try:
+                epoch = trainer.epoch
+            except AttributeError:
+                pass
+            if epoch < warm_up_epoch:
+                new_lr = base_lr * (epoch + 1) / warm_up_epoch
+            else:
+                new_lr = base_lr * (lr_decay_rate ** np.sum(epoch >= np.array(step)))
+            # TODO: Gotta see if I do it for all optimizers or not
+            for param_group in optimizer.param_groups:
+                param_group['lr'] = new_lr
+            return new_lr
+        else:
+            raise ValueError()
+
+def get_end_of_epoch_hook(orig_end_of_epoch_hook, model_name, **kwargs):
+    from functools import partial
+
+    def dummy_hook(trainer):
+        pass
+
+    actual_hook_to_use = dummy_hook
+    if model_name == "sttformer":
+        actual_hook_to_use = stt_hook
+
+    custom_hook = partial(actual_hook_to_use, **kwargs)
+
+    def true_hook(trainer):
+        custom_hook(trainer)
+        return orig_end_of_epoch_hook(trainer)
+
+    return true_hook
 
 @hydra.main(config_path="config")
 def train_app(cfg):
@@ -180,6 +218,7 @@ def train_app(cfg):
     #trunk = torchvision.models.__dict__[cfg.model.model.model_name](pretrained=cfg.model.model.pretrained)
     #graph = ntu_rgb_d.Graph()
     #trunk = agcn.Model(graph="graph.ntu_rgb_d.Graph")
+    # TODO: Import STTformer or any other specified model instead
     trunk = msg3d.Model(graph="graph.ntu_rgb_d.AdjMatrixGraph", num_class=100, num_point=25, num_person=2, num_gcn_scales=13, num_g3d_scales=6)
     
     #resnet18(pretrained=True)
@@ -202,9 +241,9 @@ def train_app(cfg):
 
     # Set optimizers
     if cfg.optimizer.optimizer.name == "sdg":
-        trunk_optimizer = torch.optim.SGD(trunk.parameters(), lr=cfg.optimizer.optimizer.lr, momentum=cfg.optimizer.optimizer.momentum, weight_decay=cfg.optimizer.optimizer.weight_decay)
-        embedder_optimizer = torch.optim.SGD(embedder.parameters(), lr=cfg.optimizer.optimizer.lr, momentum=cfg.optimizer.optimizer.momentum, weight_decay=cfg.optimizer.optimizer.weight_decay)
-        classifier_optimizer = torch.optim.SGD(classifier.parameters(), lr=cfg.optimizer.optimizer.lr, momentum=cfg.optimizer.optimizer.momentum, weight_decay=cfg.optimizer.optimizer.weight_decay)
+        trunk_optimizer = torch.optim.SGD(trunk.parameters(), lr=cfg.optimizer.optimizer.lr, momentum=cfg.optimizer.optimizer.momentum, weight_decay=cfg.optimizer.optimizer.weight_decay, nesterov=cfg.optimizer.optimizer.nesterov)
+        embedder_optimizer = torch.optim.SGD(embedder.parameters(), lr=cfg.optimizer.optimizer.lr, momentum=cfg.optimizer.optimizer.momentum, weight_decay=cfg.optimizer.optimizer.weight_decay, nesterov=cfg.optimizer.optimizer.nesterov)
+        classifier_optimizer = torch.optim.SGD(classifier.parameters(), lr=cfg.optimizer.optimizer.lr, momentum=cfg.optimizer.optimizer.momentum, weight_decay=cfg.optimizer.optimizer.weight_decay, nesterov=cfg.optimizer.optimizer.nesterov)
     elif cfg.optimizer.optimizer.name == "rmsprop":
         trunk_optimizer = torch.optim.RMSprop(trunk.parameters(), lr=cfg.optimizer.optimizer.lr, momentum=cfg.optimizer.optimizer.momentum, weight_decay=cfg.optimizer.optimizer.weight_decay)
         embedder_optimizer = torch.optim.RMSprop(embedder.parameters(), lr=cfg.optimizer.optimizer.lr, momentum=cfg.optimizer.optimizer.momentum, weight_decay=cfg.optimizer.optimizer.weight_decay)
@@ -251,12 +290,14 @@ def train_app(cfg):
     # We can specify loss weights if we want to. This is optional
     loss_weights = {"metric_loss": cfg.loss.loss.metric_loss, "classifier_loss": cfg.loss.loss.classifier_loss}
 
-    schedulers = {
-            #"metric_loss_scheduler_by_epoch": torch.optim.lr_scheduler.StepLR(classifier_optimizer, cfg.optimizer.scheduler.step_size, gamma=cfg.optimizer.scheduler.gamma),
-            "embedder_scheduler_by_epoch": torch.optim.lr_scheduler.StepLR(embedder_optimizer, cfg.optimizer.scheduler.step_size, gamma=cfg.optimizer.scheduler.gamma),
-            "classifier_scheduler_by_epoch": torch.optim.lr_scheduler.StepLR(classifier_optimizer, cfg.optimizer.scheduler.step_size, gamma=cfg.optimizer.scheduler.gamma),
-            "trunk_scheduler_by_epoch": torch.optim.lr_scheduler.StepLR(embedder_optimizer, cfg.optimizer.scheduler.step_size, gamma=cfg.optimizer.scheduler.gamma),
-            }
+    schedulers = None
+    if not cfg.model.model.model_name == "sttformer":
+        schedulers = {
+                #"metric_loss_scheduler_by_epoch": torch.optim.lr_scheduler.StepLR(classifier_optimizer, cfg.optimizer.scheduler.step_size, gamma=cfg.optimizer.scheduler.gamma),
+                "embedder_scheduler_by_epoch": torch.optim.lr_scheduler.StepLR(embedder_optimizer, cfg.optimizer.scheduler.step_size, gamma=cfg.optimizer.scheduler.gamma),
+                "classifier_scheduler_by_epoch": torch.optim.lr_scheduler.StepLR(classifier_optimizer, cfg.optimizer.scheduler.step_size, gamma=cfg.optimizer.scheduler.gamma),
+                "trunk_scheduler_by_epoch": torch.optim.lr_scheduler.StepLR(embedder_optimizer, cfg.optimizer.scheduler.step_size, gamma=cfg.optimizer.scheduler.gamma),
+                }
 
     experiment_name = "%s_model_%s_cl_%s_ml_%s_miner_%s_mix_ml_%02.2f_mix_cl_%02.2f_resize_%d_emb_size_%d_class_size_%d_opt_%s_lr_%02.2f_%s"%(cfg.dataset.dataset.name,
                                                                                                   cfg.model.model.model_name, 
@@ -271,8 +312,6 @@ def train_app(cfg):
                                                                                                   cfg.optimizer.optimizer.name,
                                                                                                   cfg.optimizer.optimizer.lr,
                                                                                                   extra_str
-                                                                                                  #cfg.optimizer.optimizer.momentum,
-                                                                                                  #cfg.optimizer.optimizer.weight_decay
                                                                                                   )
     record_keeper, _, _ = logging_presets.get_record_keeper("logs/%s"%(experiment_name), "tensorboard/%s"%(experiment_name))
     hooks = logging_presets.get_hook_container(record_keeper, primary_metric=cfg.tester.tester.metric)
@@ -281,7 +320,7 @@ def train_app(cfg):
 
     # Create the tester
     # TODO: Change back
-    tester = OneShotTester(
+    tester = WithAMPGlobalEmbeddingSpaceTester(
         cfg.tester.tester.use_amp,
         cfg.tester.tester.batch_size,
         cfg.tester.tester.dataloader_num_workers,
@@ -291,7 +330,8 @@ def train_app(cfg):
     #tester.embedding_filename=data_dir+"/embeddings_pretrained_triplet_loss_multi_similarity_miner.pkl"
     tester.embedding_filename=data_dir+"/"+experiment_name+".pkl"
     # Records metric after each epoch on one-shot validation data.
-    end_of_epoch_hook = hooks.end_of_epoch_hook(tester, dataset_dict, model_folder)
+    orig_end_of_epoch_hook = hooks.end_of_epoch_hook(tester, dataset_dict, model_folder)
+    end_of_epoch_hook = get_end_of_epoch_hook(orig_end_of_epoch_hook, cfg.model.model.model_name, **cfg.end_of_epoch_hook.kwargs)
     # Training for metric learning
     trainer = WithAutocastTrainWithClassifier(cfg.trainer.trainer.use_amp, models,
             optimizers,
@@ -309,8 +349,11 @@ def train_app(cfg):
             end_of_epoch_hook=end_of_epoch_hook
             )
 
+    if cfg.model.model.model_name == "sttformer":
+        assert cfg.end_of_epoch_hook.kwargs.base_lr == cfg.optimizer.optimizer.lr
+        stt_hook(trainer, **cfg.end_of_epoch_hook.kwargs)
+
     trainer.train(num_epochs=num_epochs)
-    print(tester.all_accuracies)
 
 
 if __name__ == "__main__":

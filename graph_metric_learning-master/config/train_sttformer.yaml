@@ -1,13 +1,13 @@
 defaults:
   - mode: train
   - model: sttformer
-  - dataset: debug
-  - optimizer: sttformer
+  - dataset: val_samples
+  - optimizer: stt_former
   - miner: multi_similarity
   - embedder_loss: triplet_margin
-  - trainer: debug
-  - tester: debug
+  - trainer: train
+  - tester: use_amp_false
   - loss: default
   - embedder: default
   - transform: minimal
-  - end_of_epoch_hook: sttformer
+  - end_of_epoch_hook: stt_former
