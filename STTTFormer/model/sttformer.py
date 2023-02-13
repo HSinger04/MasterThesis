@@ -65,6 +65,8 @@ class Model(nn.Module):
         N, C, T, V, M = x.shape
 
         x = x.permute(0, 4, 1, 2, 3).contiguous().view(N * M, C, T, V)
+        # TODO: All skeleton sequences are
+        # padded to 120 frames by replaying the actions.
         x = x.view(x.size(0), x.size(1), T // self.len_parts, V * self.len_parts)
         x = self.input_map(x)
 

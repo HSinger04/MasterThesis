@@ -1,4 +1,0 @@
-dataset:
-  name: "NTU_2sAGCN"
-  #data_dir: "/ntu/ntu_no_border/one_shot_val"
-  data_dir: "/ntu/ntu_gcn/"

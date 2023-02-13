@@ -1,7 +1,7 @@
 import numpy as np
 import pickle
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Subset
 import sys
 
 sys.path.extend(['../'])
@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 
 class Feeder(Dataset):
-    def __init__(self, data_path, label_path, train,
+    def __init__(self, data_path, label_path, train=False,
                  random_choose=False, random_shift=False, random_move=False,
                  window_size=-1, normalization=False, debug=False, use_mmap=False):
         """
@@ -63,9 +63,6 @@ class Feeder(Dataset):
 
         self.label = np.array(self.label)
         self.sample_name = np.array(self.sample_name)
-
-        if self.train:
-            self.normalize_labels()
 
         if self.debug:
             self.label = self.label[0:self.debug]
@@ -119,6 +116,7 @@ class Feeder(Dataset):
         hit_top_k = [l in rank[i, -top_k:] for i, l in enumerate(self.label)]
         return sum(hit_top_k) * 1.0 / len(hit_top_k)
 
+
 def get_data_from_idxs(data, idxs, mmap_dict={"mmap_filename": "temp", "mem_limit": 0}):
     """ From data, take the subset given by idxs.
 
@@ -159,19 +157,21 @@ def get_data_from_idxs(data, idxs, mmap_dict={"mmap_filename": "temp", "mem_limi
     data.sample_name = data.sample_name[idxs]
     return data, filename
 
-def get_train_and_os_val(data_path, label_path, val_classes, val_sample_names,
-                         mem_limits={"val_samples": 0, "val": 0, "train": 0}, debug=False):
+
+def get_train_and_os_val(feeder_class, data_path, label_path, val_classes, val_sample_names,
+                         mem_limits={"val_samples": 0, "val": 0, "train": 0}, debug=False, data_kwargs={}):
     """ Of the original train dataset given by data_path and label_path, generate the true train dataset that
     the model gets trained on as well as a one-shot validation dataset and corresponding samples for it.
 
     :param data_path: Path to the original train dataset
     :param label_path: Path to the original train dataset's label
-    :param val_classes: List of classes to use for validation (name classes as values frin {1, ..., 120})
+    :param val_classes: List of classes to use for validation (name classes as values from {1, ..., 120})
     :param val_sample_names: List of skeletons to use as samples for the representatives of the validation classes
     :param mem_limits: Dictionary that says up to how many examples can be loaded into RAM at once. If you want
     a dataset loaded fully into RAM, specify 0 as the corresponding key's value.
     :param debug: Set true for debugging purposes - generates the true train dataset faster,
     which is the main bottleneck in speed.
+    :param data_kwargs: Additional keyword arguments for initializing the datasets
     :return: true train, validation and validation samples datasets from the original dataset as np.array-likes.
     """
 
@@ -185,7 +185,8 @@ def get_train_and_os_val(data_path, label_path, val_classes, val_sample_names,
         os.makedirs(mmap_folder)
 
     # Create validation samples dataset
-    val_samples_dataset = Feeder(data_path, label_path, False, use_mmap=bool(mem_limits["val_samples"]))
+    val_samples_dataset = feeder_class(data_path, label_path, use_mmap=bool(mem_limits["val_samples"]),
+                                       **data_kwargs["val_samples"])
     orig_train_length = len(val_samples_dataset)
 
     # Only pick skeletons that are listed in val_sample_names
@@ -197,9 +198,19 @@ def get_train_and_os_val(data_path, label_path, val_classes, val_sample_names,
         val_samples_dataset.data = np.array(val_samples_dataset.data)
 
     # Create validation dataset
-    val_dataset = Feeder(data_path, label_path, False, use_mmap=bool(mem_limits["val"]))
+    val_dataset = feeder_class(data_path, label_path, use_mmap=bool(mem_limits["val"]), **data_kwargs["val"])
     # Only pick skeletons that are of the val_classes and also not part of the samples.
     val_data_idxs = np.logical_xor(np.isin(val_dataset.label + 1, val_classes), val_samples_idxs)
+    if debug:
+        true_count = 0
+        idx = 0
+        for i, bool_val in enumerate(val_data_idxs):
+            if bool_val:
+                true_count += 1
+                if true_count == 128:
+                    idx = i
+                    break
+        val_data_idxs[idx:] = False
     val_dataset, val_filename = get_data_from_idxs(val_dataset, val_data_idxs, mmap_dict={"mmap_filename": osp.join(mmap_folder,
                                                                                                       "val"),
                                                       "mem_limit": mem_limits["val"]})
@@ -208,7 +219,7 @@ def get_train_and_os_val(data_path, label_path, val_classes, val_sample_names,
 
     # Create true train set.
     if not debug:
-        train_dataset = Feeder(data_path, label_path, False, use_mmap=bool(mem_limits["train"]))
+        train_dataset = feeder_class(data_path, label_path, use_mmap=bool(mem_limits["train"]), **data_kwargs["train"])
         # Pick skeletons that are neither part of validation samples nor validation dataset.
         train_data_idxs = np.logical_not(np.logical_or(val_samples_idxs, val_data_idxs))
         del val_samples_idxs
@@ -216,17 +227,19 @@ def get_train_and_os_val(data_path, label_path, val_classes, val_sample_names,
         train_dataset, train_filename = get_data_from_idxs(train_dataset, train_data_idxs,
                                            mmap_dict={"mmap_filename": osp.join(mmap_folder, "train"),
                                                       "mem_limit": mem_limits["train"]})
-        train_dataset.normalize_labels()
 
         assert orig_train_length == len(val_samples_dataset) + len(val_dataset) + len(train_dataset)
 
     else:
-        train_dataset = Feeder(data_path, label_path, True, use_mmap=bool(mem_limits["train"]))
+        train_dataset = feeder_class(data_path, label_path, use_mmap=bool(mem_limits["train"]), **data_kwargs["train"])
+
+    train_dataset.normalize_labels()
 
     if len(train_dataset) < mem_limits["train"]:
         train_dataset.data = np.array(train_dataset.data)
 
     return train_dataset, val_dataset, val_samples_dataset
+
 
 def import_class(name):
     components = name.split('.')

@@ -1,6 +1,6 @@
 import numpy as np
 from torch.utils.data import Dataset
-from feeders import tools
+from . import tools
 import os.path as osp
 
 class Feeder(Dataset):
@@ -41,25 +41,31 @@ class Feeder(Dataset):
         self.load_data()
         if normalization:
             self.get_mean_map()
+    
+    def normalize_labels(self):
+        """ Remap the labels to only go up to the number of unique labels to avoid bugs with e.g. CrossEntropyLoss. """
+        label_to_new_labels = dict(zip(np.unique(self.label), np.array(range(len(np.unique(self.label))))))
+        self.label = np.array([label_to_new_labels[label] for label in self.label])
 
     def load_data(self):
         mmap_mode = None
         if self.use_mmap:
             mmap_mode = 'r'
         # data: N C V T M
-        if self.split == 'train':
-            self.data = np.load(osp.join(self.data_path, "x_train.npy"), mmap_mode=mmap_mode)
-            self.label = np.load(osp.join(self.data_path, "y_train.npy"))
-            self.label = np.where(self.label > 0)[1]
-            self.sample_name = np.load(osp.join(self.data_path, "names_train.npy"))
-
-        elif self.split == 'test':
-            self.data = np.load(osp.join(self.data_path, "x_test.npy"), mmap_mode=mmap_mode)
-            self.label = np.load(osp.join(self.data_path, "y_train.npy"))
-            self.label = np.where(self.label > 0)[1]
-            self.sample_name = np.load(osp.join(self.data_path, "names_test.npy"))
-        # TODO: Sample mode
+        if self.label_path:
+            self.data = np.load(self.data_path, mmap_mode=mmap_mode)
+            self.label = np.load(self.label_path)
         else:
+            self.data = np.load(osp.join(self.data_path, "x_" + self.split + ".npy"), mmap_mode=mmap_mode)
+            self.label = np.load(osp.join(self.data_path, "y_" + self.split + ".npy"))
+
+        self.sample_name = np.load(osp.join(osp.dirname(self.data_path), "names_train.npy"))
+        self.sample_name = np.char.add(self.sample_name, ".skeleton")
+
+        self.label = np.where(self.label > 0)[1]
+
+
+        if self.split not in ("train", "test", "sample"):
             raise NotImplementedError('data split only supports train/test')
 
         N, T, _ = self.data.shape
@@ -87,6 +93,7 @@ class Feeder(Dataset):
         data_numpy = tools.valid_crop_resize(data_numpy, valid_frame_num, self.p_interval, self.window_size)
         if self.random_rot:
             data_numpy = tools.random_rot(data_numpy)
+        # TODO: Adjust bone and vel to also support mmap
         if self.bone:
             ntu_pairs = ((1, 2), (2, 21), (3, 21), (4, 3), (5, 21), (6, 5),
                 (7, 6), (8, 7), (9, 21), (10, 9), (11, 10), (12, 11),
@@ -100,4 +107,4 @@ class Feeder(Dataset):
             data_numpy[:, :-1] = data_numpy[:, 1:] - data_numpy[:, :-1]
             data_numpy[:, -1] = 0
 
-        return data_numpy, label, index
+        return data_numpy, label#, index

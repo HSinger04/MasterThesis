@@ -1,2 +1,16 @@
 model_name: "sttformer"
 pretrained: False
+model_args:
+  len_parts: 6
+  num_frames: 120
+  num_joints: 25
+  num_classes: 120
+  num_heads: 3
+  kernel_size: [3, 5]
+  num_persons: 2
+  num_channels: 3
+  use_pes: True
+  config: [[64,  64,  16], [64,  64,  16],
+           [64,  128, 32], [128, 128, 32],
+           [128, 256, 64], [256, 256, 64],
+           [256, 256, 64], [256, 256, 64]]

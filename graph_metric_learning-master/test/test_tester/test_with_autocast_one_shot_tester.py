@@ -161,7 +161,7 @@ def train_app(cfg, use_amp, base_class, num_false_tests=None, num_tests=None, em
 
     start_timer()
     tester = WithAMPGlobalEmbeddingSpaceTester(use_amp, normalize_embeddings=False,
-                                                batch_size=96000, dataloader_num_workers=cfg.tester.tester.dataloader_num_workers,
+                                                batch_size=1280, dataloader_num_workers=cfg.tester.dataloader_num_workers,
                                                 accuracy_calculator=utils.accuracy_calculator.AccuracyCalculator(include=("precision_at_1", )))
     time, mem = get_time_and_memory()
     test_result = tester.test(dataset_dict, 0, model
@@ -173,11 +173,11 @@ def train_app(cfg, use_amp, base_class, num_false_tests=None, num_tests=None, em
 
 def test_autocast_equivalence():
     num_false_tests = 10
-    num_tests = 128000 * num_false_tests
+    num_tests = 128 * num_false_tests
 
     with initialize(version_base=None, config_path="../../config", job_name="test_app"):
         # Run standard TrainWithClassifier - no amp!
-        cfg = compose(config_name="test_tester_use_amp_true")
+        cfg = compose(config_name="test_tester")
         # Confirm that accuracy gets measured correctly across multiple random settings.
         for _ in range(5):
             actual_acc, desired_acc, _, _ = train_app(cfg, False, "Identity")

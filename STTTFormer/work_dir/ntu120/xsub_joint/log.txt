@@ -10,3 +10,214 @@
 [ 2022-12-22 09:01 ] Model load finished: model.sttformer.Model
 [ 2022-12-22 09:02 ] Model load finished: model.sttformer.Model
 [ 2022-12-22 13:09 ] Model load finished: model.sttformer.Model
+[ 2023-02-07 11:03 ] Model load finished: model.sttformer.Model
+[ 2023-02-07 11:03 ] Model load finished: model.sttformer.Model
+[ 2023-02-07 11:03 ] Data load finished
+[ 2023-02-07 11:03 ] Optimizer load finished: SGD
+[ 2023-02-07 11:03 ] base_lr: 0.1
+[ 2023-02-07 11:03 ] batch_size: 64
+[ 2023-02-07 11:03 ] config: config/ntu120_xsub_joint.yaml
+[ 2023-02-07 11:03 ] cuda_visible_device: 2,3
+[ 2023-02-07 11:03 ] device: 0
+[ 2023-02-07 11:03 ] eval_interval: 5
+[ 2023-02-07 11:03 ] feeder: feeders.feeder_ntu.Feeder
+[ 2023-02-07 11:03 ] ignore_weights: []
+[ 2023-02-07 11:03 ] lr_decay_rate: 0.1
+[ 2023-02-07 11:03 ] model: model.sttformer.Model
+[ 2023-02-07 11:03 ] model_args: {'len_parts': 6, 'num_frames': 120, 'num_joints': 25, 'num_classes': 120, 'num_heads': 3, 'kernel_size': [3, 5], 'num_persons': 2, 'num_channels': 3, 'use_pes': True, 'config': [[64, 64, 16], [64, 64, 16], [64, 128, 32], [128, 128, 32], [128, 256, 64], [256, 256, 64], [256, 256, 64], [256, 256, 64]]}
+[ 2023-02-07 11:03 ] nesterov: True
+[ 2023-02-07 11:03 ] num_epoch: 90
+[ 2023-02-07 11:03 ] num_worker: 8
+[ 2023-02-07 11:03 ] optimizer: SGD
+[ 2023-02-07 11:03 ] print_log: True
+[ 2023-02-07 11:03 ] run_mode: train
+[ 2023-02-07 11:03 ] save_epoch: 80
+[ 2023-02-07 11:03 ] save_score: False
+[ 2023-02-07 11:03 ] show_topk: [1, 5]
+[ 2023-02-07 11:03 ] start_epoch: 0
+[ 2023-02-07 11:03 ] step: [60, 80]
+[ 2023-02-07 11:03 ] test_batch_size: 64
+[ 2023-02-07 11:03 ] test_feeder_args: {'data_path': '/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/x_test.npy', 'label_path': '/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/y_test.npy', 'split': 'test', 'debug': False, 'window_size': 64, 'p_interval': [0.95], 'vel': False, 'bone': False}
+[ 2023-02-07 11:03 ] train_feeder_args: {'data_path': '/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/x_train.npy', 'label_path': '/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/y_train.npy', 'split': 'train', 'debug': False, 'random_choose': False, 'random_shift': False, 'random_move': False, 'window_size': 64, 'normalization': False, 'random_rot': True, 'p_interval': [0.5, 1], 'vel': False, 'bone': False}
+[ 2023-02-07 11:03 ] warm_up_epoch: 5
+[ 2023-02-07 11:03 ] weight_decay: 0.0004
+[ 2023-02-07 11:03 ] weights: None
+[ 2023-02-07 11:03 ] work_dir: ./work_dir/ntu120/xsub_joint
+[ 2023-02-07 11:03 ] # Parameters: 6249008
+[ 2023-02-07 11:03 ] ###***************start training***************###
+[ 2023-02-07 11:03 ] adjust learning rate, using warm up, epoch: 5
+[ 2023-02-07 11:08 ] Model load finished: model.sttformer.Model
+[ 2023-02-07 11:08 ] Data load finished
+[ 2023-02-07 11:08 ] Optimizer load finished: SGD
+[ 2023-02-07 11:08 ] base_lr: 0.1
+[ 2023-02-07 11:08 ] batch_size: 64
+[ 2023-02-07 11:08 ] config: config/ntu120_xsub_joint.yaml
+[ 2023-02-07 11:08 ] cuda_visible_device: 2,3
+[ 2023-02-07 11:08 ] device: 0
+[ 2023-02-07 11:08 ] eval_interval: 5
+[ 2023-02-07 11:08 ] feeder: feeders.feeder_ntu.Feeder
+[ 2023-02-07 11:08 ] ignore_weights: []
+[ 2023-02-07 11:08 ] lr_decay_rate: 0.1
+[ 2023-02-07 11:08 ] model: model.sttformer.Model
+[ 2023-02-07 11:08 ] model_args: {'len_parts': 6, 'num_frames': 120, 'num_joints': 25, 'num_classes': 120, 'num_heads': 3, 'kernel_size': [3, 5], 'num_persons': 2, 'num_channels': 3, 'use_pes': True, 'config': [[64, 64, 16], [64, 64, 16], [64, 128, 32], [128, 128, 32], [128, 256, 64], [256, 256, 64], [256, 256, 64], [256, 256, 64]]}
+[ 2023-02-07 11:08 ] nesterov: True
+[ 2023-02-07 11:08 ] num_epoch: 90
+[ 2023-02-07 11:08 ] num_worker: 8
+[ 2023-02-07 11:08 ] optimizer: SGD
+[ 2023-02-07 11:08 ] print_log: True
+[ 2023-02-07 11:08 ] run_mode: train
+[ 2023-02-07 11:08 ] save_epoch: 80
+[ 2023-02-07 11:08 ] save_score: False
+[ 2023-02-07 11:08 ] show_topk: [1, 5]
+[ 2023-02-07 11:08 ] start_epoch: 0
+[ 2023-02-07 11:08 ] step: [60, 80]
+[ 2023-02-07 11:08 ] test_batch_size: 64
+[ 2023-02-07 11:08 ] test_feeder_args: {'data_path': '/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/x_test.npy', 'label_path': '/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/y_test.npy', 'split': 'test', 'debug': False, 'window_size': 64, 'p_interval': [0.95], 'vel': False, 'bone': False}
+[ 2023-02-07 11:08 ] train_feeder_args: {'data_path': '/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/x_train.npy', 'label_path': '/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/y_train.npy', 'split': 'train', 'debug': False, 'random_choose': False, 'random_shift': False, 'random_move': False, 'window_size': 64, 'normalization': False, 'random_rot': True, 'p_interval': [0.5, 1], 'vel': False, 'bone': False}
+[ 2023-02-07 11:08 ] warm_up_epoch: 5
+[ 2023-02-07 11:08 ] weight_decay: 0.0004
+[ 2023-02-07 11:08 ] weights: None
+[ 2023-02-07 11:08 ] work_dir: ./work_dir/ntu120/xsub_joint
+[ 2023-02-07 11:08 ] # Parameters: 6249008
+[ 2023-02-07 11:08 ] ###***************start training***************###
+[ 2023-02-07 11:08 ] adjust learning rate, using warm up, epoch: 5
+[ 2023-02-07 11:14 ] Model load finished: model.sttformer.Model
+[ 2023-02-07 11:14 ] Data load finished
+[ 2023-02-07 11:14 ] Optimizer load finished: SGD
+[ 2023-02-07 11:14 ] base_lr: 0.1
+[ 2023-02-07 11:14 ] batch_size: 64
+[ 2023-02-07 11:14 ] config: config/ntu120_xsub_joint.yaml
+[ 2023-02-07 11:14 ] cuda_visible_device: 2,3
+[ 2023-02-07 11:14 ] device: 0
+[ 2023-02-07 11:14 ] eval_interval: 5
+[ 2023-02-07 11:14 ] feeder: feeders.feeder_ntu.Feeder
+[ 2023-02-07 11:14 ] ignore_weights: []
+[ 2023-02-07 11:14 ] lr_decay_rate: 0.1
+[ 2023-02-07 11:14 ] model: model.sttformer.Model
+[ 2023-02-07 11:14 ] model_args: {'len_parts': 6, 'num_frames': 120, 'num_joints': 25, 'num_classes': 120, 'num_heads': 3, 'kernel_size': [3, 5], 'num_persons': 2, 'num_channels': 3, 'use_pes': True, 'config': [[64, 64, 16], [64, 64, 16], [64, 128, 32], [128, 128, 32], [128, 256, 64], [256, 256, 64], [256, 256, 64], [256, 256, 64]]}
+[ 2023-02-07 11:14 ] nesterov: True
+[ 2023-02-07 11:14 ] num_epoch: 90
+[ 2023-02-07 11:14 ] num_worker: 8
+[ 2023-02-07 11:14 ] optimizer: SGD
+[ 2023-02-07 11:14 ] print_log: True
+[ 2023-02-07 11:14 ] run_mode: train
+[ 2023-02-07 11:14 ] save_epoch: 80
+[ 2023-02-07 11:14 ] save_score: False
+[ 2023-02-07 11:14 ] show_topk: [1, 5]
+[ 2023-02-07 11:14 ] start_epoch: 0
+[ 2023-02-07 11:14 ] step: [60, 80]
+[ 2023-02-07 11:14 ] test_batch_size: 64
+[ 2023-02-07 11:14 ] test_feeder_args: {'data_path': '/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/x_test.npy', 'label_path': '/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/y_test.npy', 'split': 'test', 'debug': False, 'window_size': 60, 'p_interval': [0.95], 'vel': False, 'bone': False}
+[ 2023-02-07 11:14 ] train_feeder_args: {'data_path': '/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/x_train.npy', 'label_path': '/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/y_train.npy', 'split': 'train', 'debug': False, 'random_choose': False, 'random_shift': False, 'random_move': False, 'window_size': 64, 'normalization': False, 'random_rot': True, 'p_interval': [0.5, 1], 'vel': False, 'bone': False}
+[ 2023-02-07 11:14 ] warm_up_epoch: 5
+[ 2023-02-07 11:14 ] weight_decay: 0.0004
+[ 2023-02-07 11:14 ] weights: None
+[ 2023-02-07 11:14 ] work_dir: ./work_dir/ntu120/xsub_joint
+[ 2023-02-07 11:14 ] # Parameters: 6249008
+[ 2023-02-07 11:14 ] ###***************start training***************###
+[ 2023-02-07 11:14 ] adjust learning rate, using warm up, epoch: 5
+[ 2023-02-07 11:15 ] Model load finished: model.sttformer.Model
+[ 2023-02-07 11:15 ] Data load finished
+[ 2023-02-07 11:15 ] Optimizer load finished: SGD
+[ 2023-02-07 11:15 ] base_lr: 0.1
+[ 2023-02-07 11:15 ] batch_size: 64
+[ 2023-02-07 11:15 ] config: config/ntu120_xsub_joint.yaml
+[ 2023-02-07 11:15 ] cuda_visible_device: 2,3
+[ 2023-02-07 11:15 ] device: 0
+[ 2023-02-07 11:15 ] eval_interval: 5
+[ 2023-02-07 11:15 ] feeder: feeders.feeder_ntu.Feeder
+[ 2023-02-07 11:15 ] ignore_weights: []
+[ 2023-02-07 11:15 ] lr_decay_rate: 0.1
+[ 2023-02-07 11:15 ] model: model.sttformer.Model
+[ 2023-02-07 11:15 ] model_args: {'len_parts': 6, 'num_frames': 120, 'num_joints': 25, 'num_classes': 120, 'num_heads': 3, 'kernel_size': [3, 5], 'num_persons': 2, 'num_channels': 3, 'use_pes': True, 'config': [[64, 64, 16], [64, 64, 16], [64, 128, 32], [128, 128, 32], [128, 256, 64], [256, 256, 64], [256, 256, 64], [256, 256, 64]]}
+[ 2023-02-07 11:15 ] nesterov: True
+[ 2023-02-07 11:15 ] num_epoch: 90
+[ 2023-02-07 11:15 ] num_worker: 8
+[ 2023-02-07 11:15 ] optimizer: SGD
+[ 2023-02-07 11:15 ] print_log: True
+[ 2023-02-07 11:15 ] run_mode: train
+[ 2023-02-07 11:15 ] save_epoch: 80
+[ 2023-02-07 11:15 ] save_score: False
+[ 2023-02-07 11:15 ] show_topk: [1, 5]
+[ 2023-02-07 11:15 ] start_epoch: 0
+[ 2023-02-07 11:15 ] step: [60, 80]
+[ 2023-02-07 11:15 ] test_batch_size: 64
+[ 2023-02-07 11:15 ] test_feeder_args: {'data_path': '/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/x_test.npy', 'label_path': '/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/y_test.npy', 'split': 'test', 'debug': False, 'window_size': 60, 'p_interval': [0.95], 'vel': False, 'bone': False}
+[ 2023-02-07 11:15 ] train_feeder_args: {'data_path': '/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/x_train.npy', 'label_path': '/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/y_train.npy', 'split': 'train', 'debug': False, 'random_choose': False, 'random_shift': False, 'random_move': False, 'window_size': 60, 'normalization': False, 'random_rot': True, 'p_interval': [0.5, 1], 'vel': False, 'bone': False}
+[ 2023-02-07 11:15 ] warm_up_epoch: 5
+[ 2023-02-07 11:15 ] weight_decay: 0.0004
+[ 2023-02-07 11:15 ] weights: None
+[ 2023-02-07 11:15 ] work_dir: ./work_dir/ntu120/xsub_joint
+[ 2023-02-07 11:15 ] # Parameters: 6249008
+[ 2023-02-07 11:15 ] ###***************start training***************###
+[ 2023-02-07 11:15 ] adjust learning rate, using warm up, epoch: 5
+[ 2023-02-07 11:15 ] Model load finished: model.sttformer.Model
+[ 2023-02-07 11:15 ] Data load finished
+[ 2023-02-07 11:15 ] Optimizer load finished: SGD
+[ 2023-02-07 11:15 ] base_lr: 0.1
+[ 2023-02-07 11:15 ] batch_size: 64
+[ 2023-02-07 11:15 ] config: config/ntu120_xsub_joint.yaml
+[ 2023-02-07 11:15 ] cuda_visible_device: 2,3
+[ 2023-02-07 11:15 ] device: 0
+[ 2023-02-07 11:15 ] eval_interval: 5
+[ 2023-02-07 11:15 ] feeder: feeders.feeder_ntu.Feeder
+[ 2023-02-07 11:15 ] ignore_weights: []
+[ 2023-02-07 11:15 ] lr_decay_rate: 0.1
+[ 2023-02-07 11:15 ] model: model.sttformer.Model
+[ 2023-02-07 11:15 ] model_args: {'len_parts': 6, 'num_frames': 120, 'num_joints': 25, 'num_classes': 120, 'num_heads': 3, 'kernel_size': [3, 5], 'num_persons': 2, 'num_channels': 3, 'use_pes': True, 'config': [[64, 64, 16], [64, 64, 16], [64, 128, 32], [128, 128, 32], [128, 256, 64], [256, 256, 64], [256, 256, 64], [256, 256, 64]]}
+[ 2023-02-07 11:15 ] nesterov: True
+[ 2023-02-07 11:15 ] num_epoch: 90
+[ 2023-02-07 11:15 ] num_worker: 8
+[ 2023-02-07 11:15 ] optimizer: SGD
+[ 2023-02-07 11:15 ] print_log: True
+[ 2023-02-07 11:15 ] run_mode: train
+[ 2023-02-07 11:15 ] save_epoch: 80
+[ 2023-02-07 11:15 ] save_score: False
+[ 2023-02-07 11:15 ] show_topk: [1, 5]
+[ 2023-02-07 11:15 ] start_epoch: 0
+[ 2023-02-07 11:15 ] step: [60, 80]
+[ 2023-02-07 11:15 ] test_batch_size: 64
+[ 2023-02-07 11:15 ] test_feeder_args: {'data_path': '/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/x_test.npy', 'label_path': '/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/y_test.npy', 'split': 'test', 'debug': False, 'window_size': 60, 'p_interval': [0.95], 'vel': False, 'bone': False}
+[ 2023-02-07 11:15 ] train_feeder_args: {'data_path': '/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/x_train.npy', 'label_path': '/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/y_train.npy', 'split': 'train', 'debug': False, 'random_choose': False, 'random_shift': False, 'random_move': False, 'window_size': 60, 'normalization': False, 'random_rot': True, 'p_interval': [0.5, 1], 'vel': False, 'bone': False}
+[ 2023-02-07 11:15 ] warm_up_epoch: 5
+[ 2023-02-07 11:15 ] weight_decay: 0.0004
+[ 2023-02-07 11:15 ] weights: None
+[ 2023-02-07 11:15 ] work_dir: ./work_dir/ntu120/xsub_joint
+[ 2023-02-07 11:15 ] # Parameters: 6249008
+[ 2023-02-07 11:15 ] ###***************start training***************###
+[ 2023-02-07 11:15 ] adjust learning rate, using warm up, epoch: 5
+[ 2023-02-07 11:18 ] Model load finished: model.sttformer.Model
+[ 2023-02-07 11:18 ] Data load finished
+[ 2023-02-07 11:18 ] Optimizer load finished: SGD
+[ 2023-02-07 11:18 ] base_lr: 0.1
+[ 2023-02-07 11:18 ] batch_size: 64
+[ 2023-02-07 11:18 ] config: config/ntu120_xsub_joint.yaml
+[ 2023-02-07 11:18 ] cuda_visible_device: 2,3
+[ 2023-02-07 11:18 ] device: 0
+[ 2023-02-07 11:18 ] eval_interval: 5
+[ 2023-02-07 11:18 ] feeder: feeders.feeder_ntu.Feeder
+[ 2023-02-07 11:18 ] ignore_weights: []
+[ 2023-02-07 11:18 ] lr_decay_rate: 0.1
+[ 2023-02-07 11:18 ] model: model.sttformer.Model
+[ 2023-02-07 11:18 ] model_args: {'len_parts': 6, 'num_frames': 120, 'num_joints': 25, 'num_classes': 120, 'num_heads': 3, 'kernel_size': [3, 5], 'num_persons': 2, 'num_channels': 3, 'use_pes': True, 'config': [[64, 64, 16], [64, 64, 16], [64, 128, 32], [128, 128, 32], [128, 256, 64], [256, 256, 64], [256, 256, 64], [256, 256, 64]]}
+[ 2023-02-07 11:18 ] nesterov: True
+[ 2023-02-07 11:18 ] num_epoch: 90
+[ 2023-02-07 11:18 ] num_worker: 8
+[ 2023-02-07 11:18 ] optimizer: SGD
+[ 2023-02-07 11:18 ] print_log: True
+[ 2023-02-07 11:18 ] run_mode: train
+[ 2023-02-07 11:18 ] save_epoch: 80
+[ 2023-02-07 11:18 ] save_score: False
+[ 2023-02-07 11:18 ] show_topk: [1, 5]
+[ 2023-02-07 11:18 ] start_epoch: 0
+[ 2023-02-07 11:18 ] step: [60, 80]
+[ 2023-02-07 11:18 ] test_batch_size: 64
+[ 2023-02-07 11:18 ] test_feeder_args: {'data_path': '/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/x_test.npy', 'label_path': '/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/y_test.npy', 'split': 'test', 'debug': False, 'window_size': 64, 'p_interval': [0.95], 'vel': False, 'bone': False}
+[ 2023-02-07 11:18 ] train_feeder_args: {'data_path': '/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/x_train.npy', 'label_path': '/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/y_train.npy', 'split': 'train', 'debug': False, 'random_choose': False, 'random_shift': False, 'random_move': False, 'window_size': 64, 'normalization': False, 'random_rot': True, 'p_interval': [0.5, 1], 'vel': False, 'bone': False}
+[ 2023-02-07 11:18 ] warm_up_epoch: 5
+[ 2023-02-07 11:18 ] weight_decay: 0.0004
+[ 2023-02-07 11:18 ] weights: None
+[ 2023-02-07 11:18 ] work_dir: ./work_dir/ntu120/xsub_joint
+[ 2023-02-07 11:18 ] # Parameters: 6249008
+[ 2023-02-07 11:18 ] ###***************start training***************###
+[ 2023-02-07 11:18 ] adjust learning rate, using warm up, epoch: 5

@@ -1,5 +1,6 @@
 denoised_data
 raw_data
+NTU120_one_shot
 *.npz
 *.npy
 *.h5

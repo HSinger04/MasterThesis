@@ -1,0 +1,51 @@
+name: "ntu120_oneshot_sttformer"
+data_path: "/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/x_train.npy"
+label_path: "/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/y_train.npy"
+data_dir: "/ntu/sttformer/"
+dataset_split:
+  val_classes:
+    - 2
+    - 14
+    - 26
+    - 38
+    - 50
+    - 62
+    - 74
+    - 86
+    - 98
+    - 110
+  mem_limits:
+    val_samples:
+      100000
+    val:
+      100000
+    train:
+      22500
+debug:
+  false
+data_kwargs:
+  val_samples:
+    split: test
+    debug: False
+    window_size: 120
+    p_interval: [0.95]
+    vel: False
+    bone: False
+  val:
+    split: test
+    debug: False
+    window_size: 120
+    p_interval: [0.95]
+    vel: False
+    bone: False
+  train:
+    random_choose: False
+    random_shift: False
+    random_move: False
+    window_size: 120
+    normalization: False
+    random_rot: True
+    p_interval: [0.5, 1]
+    vel: False
+    bone: False
+

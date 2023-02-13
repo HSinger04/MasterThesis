@@ -1,6 +1,6 @@
 defaults:
   - mode: train
-  - model: sttformer
+  - model: msg3d
   - dataset: debug
   - optimizer: sttformer
   - miner: multi_similarity

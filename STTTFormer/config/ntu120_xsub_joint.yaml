@@ -4,7 +4,8 @@ run_mode: train
 # feeder
 feeder: feeders.feeder_ntu.Feeder
 train_feeder_args:
-  data_path: gendata/ntu120/NTU_one_shot_npy
+  data_path: /home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/x_train.npy
+  label_path: /home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/y_train.npy
   split: train
   debug: False
   random_choose: False
@@ -18,7 +19,8 @@ train_feeder_args:
   bone: False
 
 test_feeder_args:
-  data_path: gendata/ntu120/NTU_one_shot_npy
+  data_path: /home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/x_test.npy
+  label_path: /home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/y_test.npy
   split: test
   debug: False
   window_size: 64
@@ -58,7 +60,7 @@ step: [60, 80]
 warm_up_epoch: 5
 
 # training
-device: [0,1]
+device: 0
 cuda_visible_device: '2,3'
 batch_size: 64
 test_batch_size: 64

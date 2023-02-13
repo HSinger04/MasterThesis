@@ -9,6 +9,9 @@ import pytorch_metric_learning.utils.logging_presets as logging_presets
 #from torchvision import datasets, models, transforms
 #import torchvision
 import logging
+import yaml
+import warnings
+from argparse import ArgumentParser
 logging.getLogger().setLevel(logging.INFO)
 import os.path as osp
 
@@ -25,10 +28,10 @@ import numpy as np
 import pickle
 
 import hydra
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from model import agcn, msg3d
-from MasterThesis.STTTFormer.model.sttformer import Model
+from MasterThesis.STTTFormer.model import sttformer
 from graph import ntu_rgb_d
 from feeders import feeder
 from trainer.with_autocast_train_with_classifier import WithAutocastTrainWithClassifier
@@ -40,57 +43,9 @@ torch.manual_seed(42)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
+# Constants
+STTFORMER = "sttformer"
 
-class OneShotTester(BaseTester):
-
-    def __init__(self, end_of_testing_hook=None):
-        super().__init__()
-        self.max_accuracy = 0.0
-        self.embedding_filename = ""
-        self.end_of_testing_hook = end_of_testing_hook
-
-
-    def __get_correct(self, output, target, topk=(1,)):
-        with torch.no_grad():
-            maxk = max(topk)
-            batch_size = target.size(0)
-
-            _, pred = output.topk(maxk, 1, True, True)
-            pred = pred.t()
-            correct = pred.eq(target.view(1, -1).expand_as(pred))
-    #             print(correct)
-        return correct
-
-
-    def __accuracy(self, output, target, topk=(1,)):
-        """Computes the accuracy over the k top predictions for the specified values of k"""
-        with torch.no_grad():
-            correct = self.__get_correct(output, target, topk)
-            batch_size = target.size(0)
-            res = []
-            for k in topk:
-                correct_k = correct[:k].view(-1).float().sum(0, keepdim=True)
-                res.append(correct_k.mul_(100.0 / batch_size))
-            return res
-
-
-    def do_knn_and_accuracies(self, accuracies, embeddings_and_labels, split_name, tag_suffix=''):
-        #print(embeddings_and_labels)
-        query_embeddings = embeddings_and_labels["val"][0]
-        query_labels = embeddings_and_labels["val"][1]
-        reference_embeddings = embeddings_and_labels["samples"][0]
-        reference_labels = embeddings_and_labels["samples"][1]
-        knn_indices, knn_distances = utils.stat_utils.get_knn(reference_embeddings, query_embeddings, 1, False)
-        knn_labels = reference_labels[knn_indices][:,0]
-
-        accuracy = accuracy_score(knn_labels, query_labels)
-        print(accuracy)
-        with open(self.embedding_filename+"_last", 'wb') as f:
-            print("Dumping embeddings for new max_acc to file", self.embedding_filename+"_last")
-            pickle.dump([query_embeddings, query_labels, reference_embeddings, reference_labels, accuracy], f)
-        accuracies["accuracy"] = accuracy
-        keyname = self.accuracies_keyname("mean_average_precision_at_r") # accuracy as keyname not working
-        accuracies[keyname] = accuracy
 
 class MLP(nn.Module):
     # layer_sizes[0] is the dimension of the input
@@ -114,19 +69,12 @@ class MLP(nn.Module):
         return self.net(x)
 
 
-# This is for replacing the last layer of a pretrained network.
-# This code is from https://github.com/KevinMusgrave/powerful_benchmarker
-class Identity(nn.Module):
+def get_datasets(model_name, data_path, label_path, val_classes, mem_limits={"val_samples": 0, "val": 0, "train": 0}, debug=False, data_kwargs={}):
 
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, x):
-        return x
-
-
-def get_datasets(val_classes, mem_limits={"val_samples": 0, "val": 0, "train": 0}, debug=False):
-    data_path = "/home/work/PycharmProjects/MA/MasterThesis/graph_metric_learning-master"
+    feeder_class = feeder.Feeder
+    if model_name == STTFORMER:
+        from MasterThesis.STTTFormer.feeders import feeder_ntu
+        feeder_class = feeder_ntu.Feeder
 
     val_sample_names = []
 
@@ -152,10 +100,11 @@ def get_datasets(val_classes, mem_limits={"val_samples": 0, "val": 0, "train": 0
 
 
     train_dataset, val_dataset, val_samples_dataset = feeder.get_train_and_os_val(
-        data_path=osp.join(data_path, "data/ntu/one_shot/train_data_joint.npy"),
-        label_path=osp.join(data_path, "data/ntu/one_shot/train_label.pkl"),
+        feeder_class=feeder_class,
+        data_path=data_path,
+        label_path=label_path,
         val_classes=val_classes, val_sample_names=val_sample_names,
-        mem_limits=mem_limits, debug=debug)
+        mem_limits=mem_limits, debug=debug, data_kwargs=data_kwargs)
 
     return train_dataset, val_dataset, val_samples_dataset
 
@@ -186,7 +135,7 @@ def get_end_of_epoch_hook(orig_end_of_epoch_hook, model_name, **kwargs):
         pass
 
     actual_hook_to_use = dummy_hook
-    if model_name == "sttformer":
+    if model_name == STTFORMER:
         actual_hook_to_use = stt_hook
 
     custom_hook = partial(actual_hook_to_use, **kwargs)
@@ -197,9 +146,34 @@ def get_end_of_epoch_hook(orig_end_of_epoch_hook, model_name, **kwargs):
 
     return true_hook
 
-@hydra.main(config_path="config")
+
+def get_trunk(cfg):
+    if cfg.model.model_name == STTFORMER:
+        trunk = sttformer.Model(**cfg.model.model_args)
+        trunk.fc = nn.Identity()
+        trunk_output_size = cfg.model.model_args["config"][-1][1]
+    elif cfg.model.model_name == "msg3d":
+        trunk = msg3d.Model(graph="graph.ntu_rgb_d.AdjMatrixGraph", num_class=100, num_point=25, num_person=2, num_gcn_scales=13, num_g3d_scales=6)
+        trunk_output_size = trunk.fc.in_features
+
+        trunk.fc = nn.Identity()
+
+    return trunk, trunk_output_size
+
+
+@hydra.main(config_path="config", version_base="1.1", )
 def train_app(cfg):
     print(cfg)
+
+    if cfg.mode.type in ("train_from_latest", "fine-tune"):
+        with open(osp.join(osp.dirname(cfg.mode.model_folder), ".hydra/config.yaml"), "r") as f:
+            old_config = yaml.load(f, yaml.Loader)
+            if not old_config == cfg:
+                raise ValueError("Old configuration and current configuration differ!")
+    elif cfg.mode.type == "train_from_scratch":
+        pass
+    else:
+        raise ValueError("Unknown cfg.mode.type: " + cfg.mode.type)
 
     # Set the datasets
     data_dir = cfg.dataset.data_dir
@@ -208,39 +182,22 @@ def train_app(cfg):
     ds_mem_limits = cfg.dataset.dataset_split.mem_limits
     mem_limits = {"val_samples": ds_mem_limits.val_samples, "val": ds_mem_limits.val, "train": ds_mem_limits.train}
 
-    train_dataset, val_dataset, val_samples_dataset = get_datasets(cfg.dataset.dataset_split.val_classes,
-                                                                   mem_limits, debug=cfg.dataset.debug)
+    train_dataset, val_dataset, val_samples_dataset = get_datasets(cfg.model.model_name,
+                                                                   cfg.dataset.data_path, cfg.dataset.label_path,
+                                                                   cfg.dataset.dataset_split.val_classes,
+                                                                   mem_limits, debug=cfg.dataset.debug, data_kwargs=cfg.dataset.data_kwargs)
     print("Trainset: ",len(train_dataset), "Testset: ",len(val_dataset), "Samplesset: ",len(val_samples_dataset))
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # Set trunk model and replace the softmax layer with an identity function
-    #trunk = torchvision.models.__dict__[cfg.model.model_name](pretrained=cfg.model.pretrained)
-    #graph = ntu_rgb_d.Graph()
-    #trunk = agcn.Model(graph="graph.ntu_rgb_d.Graph")
-    # TODO: Import STTformer or any other specified model instead
-    trunk = msg3d.Model(graph="graph.ntu_rgb_d.AdjMatrixGraph", num_class=100, num_point=25, num_person=2, num_gcn_scales=13, num_g3d_scales=6)
-    
-    #resnet18(pretrained=True)
-    #trunk = models.alexnet(pretrained=True)
-    #trunk = models.resnet50(pretrained=True)
-    #trunk = models.resnet152(pretrained=True)
-    #trunk = models.wide_resnet50_2(pretrained=True)
-    #trunk = EfficientNet.from_pretrained('efficientnet-b2')
-    trunk_output_size = trunk.fc.in_features
-
-    trunk.fc = Identity()
+    trunk, trunk_output_size = get_trunk(cfg)
     trunk = trunk.to(device)
-    # trunk = trunk.to(device)
-
     embedder = MLP([trunk_output_size, cfg.embedder.size]).to(device)
-    # embedder = MLP([trunk_output_size, cfg.embedder.size]).to(device)
     # Set output size to the number of classes in training data
     classifier = MLP([cfg.embedder.size, train_dataset.label.max() + 1]).to(device)
-    # classifier = MLP([cfg.embedder.size, cfg.embedder.class_out_size]).to(device)
 
     # Set optimizers
-    if cfg.optimizer.optimizer.name == "sdg":
+    if cfg.optimizer.optimizer.name == "sgd":
         trunk_optimizer = torch.optim.SGD(trunk.parameters(), lr=cfg.optimizer.optimizer.lr, momentum=cfg.optimizer.optimizer.momentum, weight_decay=cfg.optimizer.optimizer.weight_decay, nesterov=cfg.optimizer.optimizer.nesterov)
         embedder_optimizer = torch.optim.SGD(embedder.parameters(), lr=cfg.optimizer.optimizer.lr, momentum=cfg.optimizer.optimizer.momentum, weight_decay=cfg.optimizer.optimizer.weight_decay, nesterov=cfg.optimizer.optimizer.nesterov)
         classifier_optimizer = torch.optim.SGD(classifier.parameters(), lr=cfg.optimizer.optimizer.lr, momentum=cfg.optimizer.optimizer.momentum, weight_decay=cfg.optimizer.optimizer.weight_decay, nesterov=cfg.optimizer.optimizer.nesterov)
@@ -248,6 +205,8 @@ def train_app(cfg):
         trunk_optimizer = torch.optim.RMSprop(trunk.parameters(), lr=cfg.optimizer.optimizer.lr, momentum=cfg.optimizer.optimizer.momentum, weight_decay=cfg.optimizer.optimizer.weight_decay)
         embedder_optimizer = torch.optim.RMSprop(embedder.parameters(), lr=cfg.optimizer.optimizer.lr, momentum=cfg.optimizer.optimizer.momentum, weight_decay=cfg.optimizer.optimizer.weight_decay)
         classifier_optimizer = torch.optim.RMSprop(classifier.parameters(), lr=cfg.optimizer.optimizer.lr, momentum=cfg.optimizer.optimizer.momentum, weight_decay=cfg.optimizer.optimizer.weight_decay)
+    else:
+        raise NotImplementedError("Unsupported optimizer")
 
     # Set the loss function
     if cfg.embedder_loss.name == "margin_loss":
@@ -261,20 +220,15 @@ def train_app(cfg):
     classification_loss = torch.nn.CrossEntropyLoss()
 
     # Set the mining function
-
     if cfg.miner.name == "triplet_margin":
-        #miner = miners.TripletMarginMiner(margin=0.2)
         miner = miners.TripletMarginMiner(margin=cfg.miner.margin)
     if cfg.miner.name == "multi_similarity":
         miner = miners.MultiSimilarityMiner(epsilon=cfg.miner.epsilon)
-        #miner = miners.MultiSimilarityMiner(epsilon=0.05)
 
-    #loss = losses.CrossBatchMemory(loss, cfg.embedder.size, memory_size=1024, miner=miner) 
-    #extra_str = "cb_mem"
     extra_str = ""
 
     batch_size = cfg.trainer.batch_size
-    # 100 by default
+    # 50 by default
     num_epochs = cfg.trainer.num_epochs
     # Set the dataloader sampler
     sampler = samplers.MPerClassSampler(train_dataset.label, m=4, length_before_new_iter=len(train_dataset))
@@ -291,7 +245,7 @@ def train_app(cfg):
     loss_weights = {"metric_loss": cfg.loss.metric_loss, "classifier_loss": cfg.loss.classifier_loss}
 
     schedulers = None
-    if not cfg.model.model_name == "sttformer":
+    if not cfg.model.model_name == STTFORMER:
         schedulers = {
                 #"metric_loss_scheduler_by_epoch": torch.optim.lr_scheduler.StepLR(classifier_optimizer, cfg.optimizer.scheduler.step_size, gamma=cfg.optimizer.scheduler.gamma),
                 "embedder_scheduler_by_epoch": torch.optim.lr_scheduler.StepLR(embedder_optimizer, cfg.optimizer.scheduler.step_size, gamma=cfg.optimizer.scheduler.gamma),
@@ -299,27 +253,28 @@ def train_app(cfg):
                 "trunk_scheduler_by_epoch": torch.optim.lr_scheduler.StepLR(embedder_optimizer, cfg.optimizer.scheduler.step_size, gamma=cfg.optimizer.scheduler.gamma),
                 }
 
-    experiment_name = "%s_model_%s_cl_%s_ml_%s_miner_%s_mix_ml_%02.2f_mix_cl_%02.2f_resize_%d_emb_size_%d_class_size_%d_opt_%s_lr_%02.2f_%s"%(cfg.dataset.name,
-                                                                                                  cfg.model.model_name, 
-                                                                                                  "cross_entropy", 
-                                                                                                  cfg.embedder_loss.name, 
-                                                                                                  cfg.miner.name, 
-                                                                                                  cfg.loss.metric_loss, 
-                                                                                                  cfg.loss.classifier_loss,
-                                                                                                  cfg.transform.transform_resize,
-                                                                                                  cfg.embedder.size,
-                                                                                                  cfg.embedder.class_out_size,
-                                                                                                  cfg.optimizer.optimizer.name,
-                                                                                                  cfg.optimizer.optimizer.lr,
-                                                                                                  extra_str
-                                                                                                  )
-    record_keeper, _, _ = logging_presets.get_record_keeper("logs/%s"%(experiment_name), "tensorboard/%s"%(experiment_name))
-    hooks = logging_presets.get_hook_container(record_keeper, primary_metric=cfg.tester.metric)
+    # Be careful the experiment_name isn't too long --> can exceed char limit for folder name and thus lead to bugs
+    # experiment_name = "%s_model_%s_cl_%s_ml_%s_miner_%s_mix_ml_%02.2f_mix_cl_%02.2f_emb_size_%d_class_size_%d_opt_%s_lr_%02.2f_%s"%(cfg.dataset.name,
+    #                                                                                               cfg.model.model_name,
+    #                                                                                               "cross_entropy",
+    #                                                                                               cfg.embedder_loss.name,
+    #                                                                                               cfg.miner.name,
+    #                                                                                               cfg.loss.metric_loss,
+    #                                                                                               cfg.loss.classifier_loss,
+    #                                                                                               cfg.embedder.size,
+    #                                                                                               cfg.embedder.class_out_size,
+    #                                                                                               cfg.optimizer.optimizer.name,
+    #                                                                                               cfg.optimizer.optimizer.lr,
+    #                                                                                               extra_str
+    #                                                                                               )
     dataset_dict = {"samples": val_samples_dataset, "val": val_dataset}
-    model_folder = "example_saved_models/%s/"%(experiment_name)
+    experiment_name = hydra.core.hydra_config.HydraConfig.get().job.config_name
+    record_keeper, _, _ = logging_presets.get_record_keeper("logs", "tensorboard",
+                                                            is_new_experiment=cfg.mode.type=="train_from_scratch")
+    hooks = logging_presets.get_hook_container(record_keeper, primary_metric=cfg.tester.metric)
+    model_folder = "example_saved_models"
 
     # Create the tester
-    # TODO: Change back
     tester = WithAMPGlobalEmbeddingSpaceTester(
         cfg.tester.use_amp,
         cfg.tester.batch_size,
@@ -327,10 +282,10 @@ def train_app(cfg):
             end_of_testing_hook=hooks.end_of_testing_hook, 
             #size_of_tsne=20
             )
-    #tester.embedding_filename=data_dir+"/embeddings_pretrained_triplet_loss_multi_similarity_miner.pkl"
+
     tester.embedding_filename=data_dir+"/"+experiment_name+".pkl"
     # Records metric after each epoch on one-shot validation data.
-    orig_end_of_epoch_hook = hooks.end_of_epoch_hook(tester, dataset_dict, model_folder)
+    orig_end_of_epoch_hook = hooks.end_of_epoch_hook(tester, dataset_dict, model_folder, splits_to_eval=[('val', ['samples'])])
     end_of_epoch_hook = get_end_of_epoch_hook(orig_end_of_epoch_hook, cfg.model.model_name, **cfg.end_of_epoch_hook.kwargs)
     # Training for metric learning
     trainer = WithAutocastTrainWithClassifier(cfg.trainer.use_amp, models,
@@ -349,12 +304,29 @@ def train_app(cfg):
             end_of_epoch_hook=end_of_epoch_hook
             )
 
-    if cfg.model.model_name == "sttformer":
+    if cfg.model.model_name == STTFORMER:
         assert cfg.end_of_epoch_hook.kwargs.base_lr == cfg.optimizer.optimizer.lr
         stt_hook(trainer, **cfg.end_of_epoch_hook.kwargs)
 
-    trainer.train(num_epochs=num_epochs)
+    start_epoch = 1
+    if cfg.mode.type in ("train_from_latest", "fine-tune"):
+        try:
+            with open(osp.join(osp.dirname(cfg.mode.model_folder), ".hydra/config.yaml"), "r") as f:
+                old_config = yaml.load(f, yaml.Loader)
+                if not old_config == cfg:
+                    raise ValueError("Old configuration and current configuration differ!")
+            best = cfg.mode.type == "fine-tune"
+            start_epoch = hooks.load_latest_saved_models(trainer, cfg.mode.model_folder, device=device, best=best)
+        except (TypeError):
+            raise ValueError('Specify cfg.mode.model_folder. You can do this by adding e.g. '
+                             '+mode.model_name=your_model_folder as a command-line argument.')
 
+    trainer.train(start_epoch=start_epoch, num_epochs=num_epochs)
 
 if __name__ == "__main__":
+    parser = ArgumentParser()
+    parser.add_argument('--mode', help='Pick between "train_from_scratch", "train_from_latest", "fine-tune"')
+    parser.add_argument('--model_folder', help='If mode is "train_from_latest" or "fine-tune", specify the model'
+                                               'folder to load the model from', default=None)
+
     train_app()
