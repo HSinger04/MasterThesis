@@ -1,15 +1,7 @@
 defaults:
   - model: sttformer
-  - dataset: val_samples_sttformer_train
-  - optimizer: sttformer
-  - miner: multi_similarity
-  - embedder_loss: triplet_margin
-  - trainer: sttformer_train
+  - dataset: sttformer_test
   - tester: use_amp_false
-  - loss: default
-  - embedder: default
-  - transform: minimal
-  - end_of_epoch_hook: sttformer
 hydra:
   run:
     dir: ./outputs/train_sttformer

@@ -1,4 +1,7 @@
 """ File for metric learning. """
+import sys
+import os.path as osp
+sys.path.append(osp.dirname(osp.dirname(osp.dirname(__file__))))
 
 # The testing module requires faiss
 # So if you don't have that, then this import will break
@@ -10,12 +13,10 @@ import pytorch_metric_learning.utils.logging_presets as logging_presets
 #import torchvision
 import logging
 import yaml
-import sys
 import warnings
 from shutil import rmtree
 from argparse import ArgumentParser
 logging.getLogger().setLevel(logging.INFO)
-import os.path as osp
 
 import pytorch_metric_learning
 from pytorch_metric_learning.testers.base_tester import BaseTester
@@ -47,7 +48,6 @@ torch.backends.cudnn.benchmark = False
 
 # Constants
 STTFORMER = "sttformer"
-
 
 class MLP(nn.Module):
     # layer_sizes[0] is the dimension of the input
@@ -101,12 +101,13 @@ def get_datasets(model_name, data_path, label_path, val_classes, mem_limits={"va
         val_sample_names.append(sample_name)
 
 
-    train_dataset, val_dataset, val_samples_dataset = feeder.get_train_and_os_val(
-        feeder_class=feeder_class,
-        data_path=data_path,
-        label_path=label_path,
-        val_classes=val_classes, val_sample_names=val_sample_names,
-        mem_limits=mem_limits, debug=debug, data_kwargs=data_kwargs)
+    train_dataset, val_dataset, val_samples_dataset = feeder.get_train_and_os_val(feeder_class=feeder_class,
+                                                                                  data_path=data_path,
+                                                                                  label_path=label_path,
+                                                                                  val_classes=val_classes,
+                                                                                  val_sample_names=val_sample_names,
+                                                                                  mem_limits=mem_limits, debug=debug,
+                                                                                  data_kwargs=data_kwargs)
 
     return train_dataset, val_dataset, val_samples_dataset
 

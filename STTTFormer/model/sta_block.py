@@ -50,6 +50,7 @@ class STA_Block(nn.Module):
         xs = torch.einsum('nctu,nhuv->nhctv', [x, attention]).contiguous().view(N, self.num_heads * self.in_channels, T, V)
         x_ress = self.ress(x)
         xs = self.relu(self.out_nets(xs) + x_ress)
+        # TODO: ff_net leads to a tensor full of nans with AMP.
         xs = self.relu(self.ff_net(xs) + x_ress)
 
         # Inter-Frame Feature Aggregation

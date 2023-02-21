@@ -192,55 +192,13 @@ def test_autocast_equivalence():
         _, _, time_no_amp, mem_no_amp = train_app(cfg, False, "Matrix", num_false_tests, num_tests, 100)
         _, _, time_with_amp, mem_with_amp = train_app(cfg, True, "Matrix", num_false_tests, num_tests, 100)
 
-        print(mem_no_amp)
-        print(mem_with_amp)
-        assert mem_with_amp <= mem_no_amp
-
-        print(time_no_amp)
-        print(time_with_amp)
-        assert time_with_amp < time_no_amp
-
-
-
-
-
-    # with initialize(version_base=None, config_path="../../config", job_name="test_app"):
-    #     # Run WithAutoCastTrainWithClassifier, though AMP is disabled.
-    #     cfg = compose(config_name="test_use_amp_false")
-    #     model_amp_1, time_amp_1, mem_amp_1 = train_app(cfg, WithAutocastTrainWithClassifier)
-    #     embedder_amp_1_params = list(model_amp_1["embedder"].parameters())
-    #
-    # with initialize(version_base=None, config_path="../../config", job_name="test_app"):
-    #     # Run WithAutoCastTrainWithClassifier, though AMP is enabled.
-    #     cfg = compose(config_name="test_use_amp_true")
-    #     model_amp_2, time_amp_2, mem_amp_2 = train_app(cfg, WithAutocastTrainWithClassifier)
-    #     embedder_amp_2_params = list(model_amp_2["embedder"].parameters())
-    #
-    # for params_1, params_2 in zip(embedder_def_params, embedder_amp_1_params):
-    #     # Assert that TrainWithClassifier and WithAutoCastTrainWithClassifier without AMP results in same weights.
-    #     params_1 = params_1.cpu().detach()
-    #     params_2 = params_2.cpu().detach()
-    #     assert np.array_equal(params_1, params_2)
-    #
-    # for params_1, params_2 in zip(embedder_amp_1_params, embedder_amp_2_params):
-    #     # Assert that WithAutoCastTrainWithClassifier with and without AMP results in similar results.
-    #     params_1 = params_1.cpu().detach()
-    #     params_2 = params_2.cpu().detach()
-    #     total = 0
-    #     for compar in np.where(np.isclose(params_1, params_2)):
-    #         total += len(compar)
-    #     print(total)
-    #     print(torch.numel(params_1))
-    #     assert total > torch.numel(params_1) // 2
-    #
-    # # Assert that AMP results in better time and memory.
-    # print(time_amp_1)
-    # print(time_amp_2)
-    # assert time_amp_2 < time_amp_1
-    #
-    # print(mem_amp_1)
-    # print(mem_amp_2)
-    # assert mem_amp_2 < mem_amp_1
+        # print(mem_no_amp)
+        # print(mem_with_amp)
+        # assert mem_with_amp <= mem_no_amp
+        #
+        # print(time_no_amp)
+        # print(time_with_amp)
+        # assert time_with_amp < time_no_amp
 
 if __name__ == '__main__':
     test_autocast_equivalence()

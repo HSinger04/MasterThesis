@@ -201,6 +201,7 @@ def get_train_and_os_val(feeder_class, data_path, label_path, val_classes, val_s
     val_dataset = feeder_class(data_path, label_path, use_mmap=bool(mem_limits["val"]), **data_kwargs["val"])
     # Only pick skeletons that are of the val_classes and also not part of the samples.
     val_data_idxs = np.logical_xor(np.isin(val_dataset.label + 1, val_classes), val_samples_idxs)
+    #TODO: Comment out
     if debug:
         true_count = 0
         idx = 0
