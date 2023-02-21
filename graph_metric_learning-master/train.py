@@ -10,7 +10,9 @@ import pytorch_metric_learning.utils.logging_presets as logging_presets
 #import torchvision
 import logging
 import yaml
+import sys
 import warnings
+from shutil import rmtree
 from argparse import ArgumentParser
 logging.getLogger().setLevel(logging.INFO)
 import os.path as osp
@@ -165,16 +167,6 @@ def get_trunk(cfg):
 def train_app(cfg):
     print(cfg)
 
-    if cfg.mode.type in ("train_from_latest", "fine-tune"):
-        with open(osp.join(osp.dirname(cfg.mode.model_folder), ".hydra/config.yaml"), "r") as f:
-            old_config = yaml.load(f, yaml.Loader)
-            if not old_config == cfg:
-                raise ValueError("Old configuration and current configuration differ!")
-    elif cfg.mode.type == "train_from_scratch":
-        pass
-    else:
-        raise ValueError("Unknown cfg.mode.type: " + cfg.mode.type)
-
     # Set the datasets
     data_dir = cfg.dataset.data_dir
     print("Data dir: "+data_dir)
@@ -219,6 +211,17 @@ def train_app(cfg):
     # Set the classification loss:
     classification_loss = torch.nn.CrossEntropyLoss()
 
+    if cfg.dataset.debug:
+        # def inspect_grads(module, grad_input, grad_output):
+        #     print(module)
+        #     print(grad_input)
+        #     print(grad_output)
+        #     return (grad_input, grad_output)
+        #
+        # loss.register_full_backward_hook(inspect_grads)
+#        classification_loss.register_full_backward_hook(inspect_grads)
+        pass
+
     # Set the mining function
     if cfg.miner.name == "triplet_margin":
         miner = miners.TripletMarginMiner(margin=cfg.miner.margin)
@@ -232,8 +235,6 @@ def train_app(cfg):
     num_epochs = cfg.trainer.num_epochs
     # Set the dataloader sampler
     sampler = samplers.MPerClassSampler(train_dataset.label, m=4, length_before_new_iter=len(train_dataset))
-    
-
 
     # Package the above stuff into dictionaries.
     models = {"trunk": trunk, "embedder": embedder, "classifier": classifier}
@@ -324,9 +325,52 @@ def train_app(cfg):
     trainer.train(start_epoch=start_epoch, num_epochs=num_epochs)
 
 if __name__ == "__main__":
-    parser = ArgumentParser()
-    parser.add_argument('--mode', help='Pick between "train_from_scratch", "train_from_latest", "fine-tune"')
-    parser.add_argument('--model_folder', help='If mode is "train_from_latest" or "fine-tune", specify the model'
-                                               'folder to load the model from', default=None)
+    # parser = ArgumentParser()
+    # parser.add_argument('--mode', help='Pick between "train_from_scratch", "train_from_latest", "fine-tune"')
+    # parser.add_argument('--model_folder', help='If mode is "train_from_latest" or "fine-tune", specify the model'
+    #                                            'folder to load the model from', default=None)
+
+    from omegaconf import OmegaConf
+
+    with open(osp.join("config", sys.argv[sys.argv.index("--config-name") + 1] + ".yaml")) as cfg_file:
+        cfg = yaml.load(cfg_file, yaml.Loader)["defaults"]
+
+    mode_type = None
+    model_folder = None
+
+    mode_str = "+mode.type="
+    model_folder_str = "+mode.model_folder="
+
+    for i, arg in enumerate(sys.argv):
+        if mode_str in arg:
+            # arg.find(mode_str) + len(mode_str)
+            mode_type = arg[arg.find(mode_str) + len(mode_str):]
+        elif model_folder_str in arg:
+            model_folder = arg[arg.find(model_folder_str) + len(model_folder_str):]
+    if mode_type in ("train_from_latest", "fine-tune"):
+        with open(osp.join(osp.dirname(model_folder), ".hydra/config.yaml"), "r") as f:
+            old_config = yaml.load(f, yaml.Loader)
+            old_config.pop("mode", None)
+            for a_config in cfg:
+                k = list(a_config.keys())[0]
+                v = list(a_config.values())[0]
+                with open(osp.join("config", k, v + ".yaml")) as f:
+                    sub_cfg = yaml.load(f, yaml.Loader)
+                    if not old_config[k] == sub_cfg:
+                        raise ValueError("Old configuration and current configuration differ!"
+                                         + "\n" + "old sub config: " + str(old_config[k])
+                                         + "\n" + "new sub config: " + str(sub_cfg))
+    elif mode_type == "train_from_scratch":
+        old_out_dir = osp.join("outputs", sys.argv[sys.argv.index("--config-name") + 1])
+        if osp.isdir(osp.join("outputs", sys.argv[sys.argv.index("--config-name") + 1])):
+            answer = input("Output directory for this config already exists. "
+                           "Do you want to delete old directory? If yes, type 'yes'. Otherwise, type anything else: ")
+            if answer == "yes":
+                print("Removing directory!")
+                rmtree(old_out_dir)
+            else:
+                raise ValueError("Directory for config already exists.")
+    else:
+        raise ValueError("Unknown cfg.mode.type: " + mode_type)
 
     train_app()
