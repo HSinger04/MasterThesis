@@ -158,7 +158,7 @@ def get_data_from_idxs(data, idxs, mmap_dict={"mmap_filename": "temp", "mem_limi
     return data, filename
 
 
-def get_train_and_os_val(feeder_class, data_path, label_path, val_classes, val_sample_names,
+def get_train_and_os_val(feeder_class, data_path, label_path, name_path, val_classes, val_sample_names,
                          mem_limits={"val_samples": 0, "val": 0, "train": 0}, debug=False, data_kwargs={}):
     """ Of the original train dataset given by data_path and label_path, generate the true train dataset that
     the model gets trained on as well as a one-shot validation dataset and corresponding samples for it.
@@ -185,7 +185,7 @@ def get_train_and_os_val(feeder_class, data_path, label_path, val_classes, val_s
         os.makedirs(mmap_folder)
 
     # Create validation samples dataset
-    val_samples_dataset = feeder_class(data_path, label_path, use_mmap=bool(mem_limits["val_samples"]),
+    val_samples_dataset = feeder_class(data_path, label_path, name_path, use_mmap=bool(mem_limits["val_samples"]),
                                        **data_kwargs["val_samples"])
     orig_train_length = len(val_samples_dataset)
 
@@ -198,7 +198,7 @@ def get_train_and_os_val(feeder_class, data_path, label_path, val_classes, val_s
         val_samples_dataset.data = np.array(val_samples_dataset.data)
 
     # Create validation dataset
-    val_dataset = feeder_class(data_path, label_path, use_mmap=bool(mem_limits["val"]), **data_kwargs["val"])
+    val_dataset = feeder_class(data_path, label_path, name_path, use_mmap=bool(mem_limits["val"]), **data_kwargs["val"])
     # Only pick skeletons that are of the val_classes and also not part of the samples.
     val_data_idxs = np.logical_xor(np.isin(val_dataset.label + 1, val_classes), val_samples_idxs)
     #TODO: Comment out
@@ -220,7 +220,7 @@ def get_train_and_os_val(feeder_class, data_path, label_path, val_classes, val_s
 
     # Create true train set.
     if not debug:
-        train_dataset = feeder_class(data_path, label_path, use_mmap=bool(mem_limits["train"]), **data_kwargs["train"])
+        train_dataset = feeder_class(data_path, label_path, name_path, use_mmap=bool(mem_limits["train"]), **data_kwargs["train"])
         # Pick skeletons that are neither part of validation samples nor validation dataset.
         train_data_idxs = np.logical_not(np.logical_or(val_samples_idxs, val_data_idxs))
         del val_samples_idxs
@@ -232,7 +232,7 @@ def get_train_and_os_val(feeder_class, data_path, label_path, val_classes, val_s
         assert orig_train_length == len(val_samples_dataset) + len(val_dataset) + len(train_dataset)
 
     else:
-        train_dataset = feeder_class(data_path, label_path, use_mmap=bool(mem_limits["train"]), **data_kwargs["train"])
+        train_dataset = feeder_class(data_path, label_path, name_path, use_mmap=bool(mem_limits["train"]), **data_kwargs["train"])
 
     train_dataset.normalize_labels()
 

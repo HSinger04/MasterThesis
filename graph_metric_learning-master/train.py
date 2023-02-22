@@ -71,7 +71,7 @@ class MLP(nn.Module):
         return self.net(x)
 
 
-def get_datasets(model_name, data_path, label_path, val_classes, mem_limits={"val_samples": 0, "val": 0, "train": 0}, debug=False, data_kwargs={}):
+def get_datasets(model_name, data_path, label_path, name_path, val_classes, mem_limits={"val_samples": 0, "val": 0, "train": 0}, debug=False, data_kwargs={}):
 
     feeder_class = feeder.Feeder
     if model_name == STTFORMER:
@@ -104,6 +104,7 @@ def get_datasets(model_name, data_path, label_path, val_classes, mem_limits={"va
     train_dataset, val_dataset, val_samples_dataset = feeder.get_train_and_os_val(feeder_class=feeder_class,
                                                                                   data_path=data_path,
                                                                                   label_path=label_path,
+                                                                                  name_path=name_path,
                                                                                   val_classes=val_classes,
                                                                                   val_sample_names=val_sample_names,
                                                                                   mem_limits=mem_limits, debug=debug,
@@ -177,6 +178,7 @@ def train_app(cfg):
 
     train_dataset, val_dataset, val_samples_dataset = get_datasets(cfg.model.model_name,
                                                                    cfg.dataset.data_path, cfg.dataset.label_path,
+                                                                   cfg.dataset.name_path,
                                                                    cfg.dataset.dataset_split.val_classes,
                                                                    mem_limits, debug=cfg.dataset.debug, data_kwargs=cfg.dataset.data_kwargs)
     print("Trainset: ",len(train_dataset), "Testset: ",len(val_dataset), "Samplesset: ",len(val_samples_dataset))

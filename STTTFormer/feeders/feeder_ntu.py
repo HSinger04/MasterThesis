@@ -4,12 +4,13 @@ from . import tools
 import os.path as osp
 
 class Feeder(Dataset):
-    def __init__(self, data_path, label_path=None, p_interval=1, split='train', random_choose=False, random_shift=False,
+    def __init__(self, data_path, label_path=None, names_path=None, p_interval=1, split='train', random_choose=False, random_shift=False,
                  random_move=False, random_rot=False, window_size=-1, normalization=False, debug=False, use_mmap=True,
                  bone=False, vel=False):
         """
         data_path:
         label_path:
+        names_path:
         split: training set or test set
         random_choose: If true, randomly choose a portion of the input sequence
         random_shift: If true, randomly pad zeros at the begining or end of sequence
@@ -27,6 +28,7 @@ class Feeder(Dataset):
         self.debug = debug
         self.data_path = data_path
         self.label_path = label_path
+        self.names_path = names_path
         self.split = split
         self.random_choose = random_choose
         self.random_shift = random_shift
@@ -52,20 +54,21 @@ class Feeder(Dataset):
         if self.use_mmap:
             mmap_mode = 'r'
         # data: N C V T M
-        if self.label_path:
+        if self.label_path and self.names_path:
             self.data = np.load(self.data_path, mmap_mode=mmap_mode)
             self.label = np.load(self.label_path)
+            self.sample_name = np.load(self.names_path)
         else:
             self.data = np.load(osp.join(self.data_path, "x_" + self.split + ".npy"), mmap_mode=mmap_mode)
             self.label = np.load(osp.join(self.data_path, "y_" + self.split + ".npy"))
+            self.sample_name = np.load(osp.join(self.data_path, "names_" + self.split + ".npy"))
 
-        self.sample_name = np.load(osp.join(osp.dirname(self.data_path), "names_train.npy"))
         self.sample_name = np.char.add(self.sample_name, ".skeleton")
 
         self.label = np.where(self.label > 0)[1]
 
 
-        if self.split not in ("train", "test", "sample"):
+        if self.split not in ("train", "test", "sample", "test_and_sample"):
             raise NotImplementedError('data split only supports train/test')
 
         N, T, _ = self.data.shape

@@ -1,0 +1,4 @@
+use_amp: false
+batch_size: 8
+dataloader_num_workers: 4
+metric: "precision_at_1"

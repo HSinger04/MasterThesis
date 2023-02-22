@@ -5,7 +5,7 @@ defaults:
   - miner: multi_similarity
   - embedder_loss: triplet_margin
   - trainer: sttformer_train
-  - tester: use_amp_false
+  - tester: sttformer_no_amp
   - loss: default
   - embedder: default
   - transform: minimal

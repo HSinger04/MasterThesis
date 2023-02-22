@@ -1,6 +1,7 @@
 name: "ntu120_oneshot_sttformer"
 data_path: "/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/x_train.npy"
 label_path: "/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/y_train.npy"
+name_path: "/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/names_train.npy"
 data_dir: "/ntu/sttformer/"
 dataset_split:
   val_classes:
@@ -25,20 +26,21 @@ debug:
   true
 data_kwargs:
   val_samples:
-    split: test
+    split: train
     debug: False
     window_size: 120
     p_interval: [0.95]
     vel: False
     bone: False
   val:
-    split: test
+    split: train
     debug: False
     window_size: 120
     p_interval: [0.95]
     vel: False
     bone: False
   train:
+    split: train
     random_choose: False
     random_shift: False
     random_move: False
