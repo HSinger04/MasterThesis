@@ -58,4 +58,4 @@ The accuracy is equivalent to ```precision_at_1_level0``` metric when using ```s
 The history of metrics can be found under MasterThesis/graph_metric_learning-master/outputs/*config-name*/logs/accuracies_*hashed_value*_SAMPLES.csv.
 
 During testing, we evaluate the following on the test set in a one-shot setting: The [confusion matrix](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.confusion_matrix.html), the accuracy, the mean [Silhouette Coefficient](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.silhouette_score.html#sklearn.metrics.silhouette_score),
-all the [metrics measured by default by Pytorch Metric Learning](https://kevinmusgrave.github.io/pytorch-metric-learning/accuracy_calculation/#explanations-of-the-default-accuracy-metrics).
+all the [metrics measured by default by Pytorch Metric Learning](https://kevinmusgrave.github.io/pytorch-metric-learning/accuracy_calculation/#explanations-of-the-default-accuracy-metrics), as well as a visualization of the embedding space.
