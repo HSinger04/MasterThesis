@@ -281,8 +281,8 @@ def train_app(cfg):
     # Create the tester
     tester = WithAMPGlobalEmbeddingSpaceTester(
         cfg.tester.use_amp,
-        cfg.tester.batch_size,
-        cfg.tester.dataloader_num_workers,
+        batch_size=cfg.tester.batch_size,
+        dataloader_num_workers=cfg.tester.dataloader_num_workers,
             end_of_testing_hook=hooks.end_of_testing_hook, 
             #size_of_tsne=20
             )
