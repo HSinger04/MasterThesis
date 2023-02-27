@@ -41,7 +41,7 @@ packaging==23.0
 pickle5==0.0.11
 Pillow==9.4.0
 pluggy==1.0.0
-protobuf==3.20.1
+protobuf==3.20.2
 pyasn1==0.4.8
 pyasn1-modules==0.2.8
 pynndescent==0.5.8
@@ -71,5 +71,5 @@ tqdm==4.64.1
 typing_extensions==4.4.0
 umap-learn==0.5.3
 urllib3==1.26.14
-Werkzeug==2.2.2
+Werkzeug==2.2.3
 yarl==1.8.2
