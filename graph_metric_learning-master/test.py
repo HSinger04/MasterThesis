@@ -49,7 +49,7 @@ def main(cfg):
     models = {"trunk": trunk, "embedder": embedder, "classifier": classifier}
 
     _, model_suffix = c_f.latest_version(
-        cfg.mode.model_folder, "trunk_*.pth")
+        cfg.mode.model_folder, "trunk_*.pth", best=cfg.mode.use_best)
 
     c_f.load_dict_of_models(
         models, model_suffix, cfg.mode.model_folder, device, log_if_successful=True
@@ -63,29 +63,29 @@ def main(cfg):
     hooks = logging_presets.get_hook_container(record_keeper)
 
     # Confusion matrix
-    im = inference.InferenceModel(trunk, embedder)
-    im.train_knn(test_samples_dataset)
-
-    test_dataloader = DataLoader(test_dataset, cfg.dataset.data_loader.batch_size,
-                                 num_workers=cfg.dataset.data_loader.num_workers, pin_memory=True)
-    true_labels = np.empty(0)
-    pred_labels = []
+    # im = inference.InferenceModel(trunk, embedder)
+    # im.train_knn(test_samples_dataset)
+    #
+    # test_dataloader = DataLoader(test_dataset, cfg.dataset.data_loader.batch_size,
+    #                              num_workers=cfg.dataset.data_loader.num_workers, pin_memory=True)
+    # true_labels = np.empty(0)
+    # pred_labels = []
 
     # Temporarily disable logger to avoid spamming
-    c_f.LOGGER.propagate = False
-    for input_batch, label_batch in tqdm(test_dataloader):
-        _, indices = im.get_nearest_neighbors(input_batch, k=1)
-        true_labels = np.append(true_labels, label_batch.cpu().numpy())
-        pred_labels += [test_dataset.__getitem__(x[0])[1] for x in indices.cpu().numpy()]
+    # c_f.LOGGER.propagate = False
+    # for input_batch, label_batch in tqdm(test_dataloader):
+    #     _, indices = im.get_nearest_neighbors(input_batch, k=1)
+    #     true_labels = np.append(true_labels, label_batch.cpu().numpy())
+    #     pred_labels += [test_dataset.__getitem__(x[0])[1] for x in indices.cpu().numpy()]
 
     # Enable logger again
     c_f.LOGGER.propagate = True
 
-    # Display confusion matrix
-    cm = confusion_matrix(pred_labels, true_labels, labels=test_samples_dataset.label)
-    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=test_samples_dataset.label)
-    disp.plot()
-    plt.show()
+    # # Display confusion matrix
+    # cm = confusion_matrix(pred_labels, true_labels, labels=test_samples_dataset.label)
+    # disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=test_samples_dataset.label)
+    # disp.plot()
+    # plt.show()
 
     # Create the tester
     # TODO: Maybe use the visualizer stuff
@@ -96,14 +96,14 @@ def main(cfg):
         end_of_testing_hook=hooks.end_of_testing_hook
     )
 
-    # Silhouette score
-    embeddings, labels = tester.get_all_embeddings(test_dataset, trunk, embedder, return_as_numpy=True)
-    silhouette_score(embeddings, labels)
+    # # Silhouette score
+    # embeddings, labels = tester.get_all_embeddings(test_dataset, trunk, embedder, return_as_numpy=True)
+    # silhouette_score(embeddings, labels)
 
     tester.embedding_filename = data_dir + "/" + experiment_name + ".pkl"
 
     # Other metrics
-    tester.test(dataset_dict, 0, trunk, embedder, splits_to_eval=[('test', ['samples'])])
+    print(tester.test(dataset_dict, 0, trunk, embedder, splits_to_eval=[('test', ['samples'])]))
 
 
 if __name__ == '__main__':

@@ -1,2 +1,3 @@
-type: train_from_latest
-model_folder: null
+type: test
+model_folder: /home/work/PycharmProjects/MA/MasterThesis/graph_metric_learning-master/outputs/train_sttformer/example_saved_models
+use_best: true

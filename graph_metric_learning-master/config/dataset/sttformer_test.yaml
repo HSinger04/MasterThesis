@@ -29,7 +29,7 @@ dataset_split:
     val_samples:
       0
     val:
-      0
+      20000
     train:
       0
 debug:
@@ -59,4 +59,6 @@ data_kwargs:
     p_interval: [0.5, 1]
     vel: False
     bone: False
-
+data_loader:
+  batch_size: 16
+  num_workers: 4

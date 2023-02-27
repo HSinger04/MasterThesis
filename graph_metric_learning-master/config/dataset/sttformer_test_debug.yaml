@@ -29,11 +29,11 @@ dataset_split:
     val_samples:
       0
     val:
-      20000
+      0
     train:
       0
 debug:
-  false
+  true
 data_kwargs:
   val_samples:
     split: test
