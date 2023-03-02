@@ -132,24 +132,27 @@ def get_data_from_idxs(data, idxs, mmap_dict={"mmap_filename": "temp", "mem_limi
         filename = mmap_dict["mmap_filename"] + ".dat"
         mmap_shape = list(data.data.shape)
         mmap_shape[0] = idxs.sum()
-        mmap_arr = np.memmap(filename, dtype=data.data.dtype, mode='w+', shape=tuple(mmap_shape))
-        mem_limit = mmap_dict["mem_limit"]
-        j = (idxs.size // mem_limit) + 1
-        prev = 0
-        print("Processing " + os.path.basename(filename))
-        for i in tqdm(range(j)):
-            start_idx = i * mem_limit
-            temp_idxs = np.zeros(idxs.shape)
-            try:
-                end_idx = (i + 1) * mem_limit
-                temp_idxs = idxs[start_idx:end_idx]
-                data_slice = data.data[start_idx:end_idx][idxs[start_idx:end_idx]]
-            except IndexError:
-                data_slice = data.data[start_idx:][idxs[start_idx:]]
-            mmap_arr[prev:prev + data_slice.shape[0]] = data_slice
-            prev += data_slice.shape[0]
+        try:
+            mmap_arr = np.memmap(filename, dtype=data.data.dtype, mode='w+', shape=tuple(mmap_shape))
+            mem_limit = mmap_dict["mem_limit"]
+            j = (idxs.size // mem_limit) + 1
+            prev = 0
+            print("Processing " + os.path.basename(filename))
+            for i in tqdm(range(j)):
+                start_idx = i * mem_limit
+                temp_idxs = np.zeros(idxs.shape)
+                try:
+                    end_idx = (i + 1) * mem_limit
+                    temp_idxs = idxs[start_idx:end_idx]
+                    data_slice = data.data[start_idx:end_idx][idxs[start_idx:end_idx]]
+                except IndexError:
+                    data_slice = data.data[start_idx:][idxs[start_idx:]]
+                mmap_arr[prev:prev + data_slice.shape[0]] = data_slice
+                prev += data_slice.shape[0]
 
-        data.data = mmap_arr
+            data.data = mmap_arr
+        except ValueError:
+            data.data = data.data[idxs]
 
     else:
         data.data = data.data[idxs]
@@ -208,7 +211,7 @@ def get_train_and_os_val(feeder_class, data_path, label_path, name_path, val_cla
         for i, bool_val in enumerate(val_data_idxs):
             if bool_val:
                 true_count += 1
-                if true_count == 128:
+                if true_count == 129:
                     idx = i
                     break
         val_data_idxs[idx:] = False
