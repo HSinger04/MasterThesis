@@ -1,6 +1,6 @@
 name: "ntu120_oneshot_debug"
-data_path: "/home/work/PycharmProjects/MA/MasterThesis/graph_metric_learning-master/data/ntu/one_shot/train_data_joint.npy"
-label_path: "/home/work/PycharmProjects/MA/MasterThesis/graph_metric_learning-master/data/ntu/one_shot/train_label.pkl"
+data_path: "../../data/ntu/one_shot/train_data_joint.npy"
+label_path: "../../data/ntu/one_shot/train_label.pkl"
 data_dir: "/ntu/debug/"
 dataset_split:
   val_classes:

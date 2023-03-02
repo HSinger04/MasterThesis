@@ -1,3 +1,4 @@
 type: test
-model_folder: /home/work/PycharmProjects/MA/MasterThesis/graph_metric_learning-master/outputs/train_sttformer/example_saved_models
+model_folder: ../train_sttformer/example_saved_models
+old_config: ../train_sttformer/.hydra/config.yaml
 use_best: true

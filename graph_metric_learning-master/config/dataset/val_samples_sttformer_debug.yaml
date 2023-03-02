@@ -1,7 +1,7 @@
 name: "ntu120_oneshot_sttformer"
-data_path: "/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/x_train.npy"
-label_path: "/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/y_train.npy"
-name_path: "/home/work/PycharmProjects/MA/MasterThesis/STTTFormer/gendata/ntu120/NTU120_one_shot/names_train.npy"
+data_path: "../../../STTTFormer/gendata/ntu120/NTU120_one_shot/x_train.npy"
+label_path: "../../../STTTFormer/gendata/ntu120/NTU120_one_shot/y_train.npy"
+name_path: "../../../STTTFormer/gendata/ntu120/NTU120_one_shot/names_train.npy"
 data_dir: "/ntu/sttformer/"
 dataset_split:
   val_classes:

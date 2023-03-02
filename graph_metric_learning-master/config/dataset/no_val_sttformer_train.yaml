@@ -1,37 +1,17 @@
 name: "ntu120_oneshot_sttformer"
-data_path: "../../../STTTFormer/gendata/ntu120/NTU120_one_shot/x_test_and_sample.npy"
-label_path: "../../../STTTFormer/gendata/ntu120/NTU120_one_shot/y_test_and_sample.npy"
-name_path: "../../../STTTFormer/gendata/ntu120/NTU120_one_shot/names_test_and_sample.npy"
+data_path: "../../../STTTFormer/gendata/ntu120/NTU120_one_shot/x_train.npy"
+label_path: "../../../STTTFormer/gendata/ntu120/NTU120_one_shot/y_train.npy"
+name_path: "../../../STTTFormer/gendata/ntu120/NTU120_one_shot/names_train.npy"
 data_dir: "/ntu/sttformer/"
 dataset_split:
-  val_classes:
-    - 1
-    - 7
-    - 13
-    - 19
-    - 25
-    - 31
-    - 37
-    - 43
-    - 49
-    - 55
-    - 61
-    - 67
-    - 73
-    - 79
-    - 85
-    - 91
-    - 97
-    - 103
-    - 109
-    - 115
+  val_classes: []
   mem_limits:
     val_samples:
-      0
+      100000
     val:
-      20000
+      100000
     train:
-      0
+      22500
 debug:
   false
 data_kwargs:
@@ -59,6 +39,4 @@ data_kwargs:
     p_interval: [0.5, 1]
     vel: False
     bone: False
-data_loader:
-  batch_size: 16
-  num_workers: 4
+

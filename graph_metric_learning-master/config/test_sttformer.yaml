@@ -6,5 +6,5 @@ defaults:
   - mode: test
 hydra:
   run:
-    dir: ./outputs/train_sttformer
+    dir: ./outputs/test_sttformer
 num_train_labels: 90

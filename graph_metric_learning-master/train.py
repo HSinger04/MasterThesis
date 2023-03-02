@@ -1,5 +1,6 @@
 """ File for metric learning. """
 import sys
+import os
 import os.path as osp
 sys.path.append(osp.dirname(osp.dirname(osp.dirname(__file__))))
 
@@ -132,7 +133,7 @@ def stt_hook(trainer, warm_up_epoch, base_lr, lr_decay_rate, step):
         else:
             raise ValueError()
 
-def get_end_of_epoch_hook(orig_end_of_epoch_hook, model_name, **kwargs):
+def get_end_of_epoch_hook(hooks, orig_end_of_epoch_hook, model_name, val_size, **kwargs):
     from functools import partial
 
     def dummy_hook(trainer):
@@ -144,9 +145,21 @@ def get_end_of_epoch_hook(orig_end_of_epoch_hook, model_name, **kwargs):
 
     custom_hook = partial(actual_hook_to_use, **kwargs)
 
-    def true_hook(trainer):
-        custom_hook(trainer)
-        return orig_end_of_epoch_hook(trainer)
+    if val_size:
+        def true_hook(trainer):
+            custom_hook(trainer)
+            return orig_end_of_epoch_hook(trainer)
+    else:
+        def true_hook(trainer):
+            custom_hook(trainer)
+            save_model_dir = "example_saved_models"
+            if osp.exists(save_model_dir):
+                for filename in os.listdir(save_model_dir):
+                    file_path = os.path.join(save_model_dir, filename)
+                    os.unlink(file_path)
+            hooks.do_save_models = True
+            hooks.save_models(trainer, save_model_dir, str(trainer.epoch))
+            return True
 
     return true_hook
 
@@ -205,7 +218,7 @@ def train_app(cfg):
 
     # Set the loss function
     if cfg.embedder_loss.name == "margin_loss":
-        loss = losses.MarginLoss(margin=cfg.embedder_loss.margin,nu=cfg.embedder_loss.nu,beta=cfg.embedder_loss.beta)
+        loss = losses.MarginLoss(margin=cfg.embedder_loss.margin, nu=cfg.embedder_loss.nu, beta=cfg.embedder_loss.beta)
     if cfg.embedder_loss.name == "triplet_margin":
         loss = losses.TripletMarginLoss(margin=cfg.embedder_loss.margin)
     if cfg.embedder_loss.name == "multi_similarity":
@@ -234,7 +247,6 @@ def train_app(cfg):
     extra_str = ""
 
     batch_size = cfg.trainer.batch_size
-    # 50 by default
     num_epochs = cfg.trainer.num_epochs
     # Set the dataloader sampler
     sampler = samplers.MPerClassSampler(train_dataset.label, m=4, length_before_new_iter=len(train_dataset))
@@ -290,7 +302,7 @@ def train_app(cfg):
     tester.embedding_filename=data_dir+"/"+experiment_name+".pkl"
     # Records metric after each epoch on one-shot validation data.
     orig_end_of_epoch_hook = hooks.end_of_epoch_hook(tester, dataset_dict, model_folder, splits_to_eval=[('val', ['samples'])])
-    end_of_epoch_hook = get_end_of_epoch_hook(orig_end_of_epoch_hook, cfg.model.model_name, **cfg.end_of_epoch_hook.kwargs)
+    end_of_epoch_hook = get_end_of_epoch_hook(hooks, orig_end_of_epoch_hook, cfg.model.model_name, len(val_dataset), **cfg.end_of_epoch_hook.kwargs)
     # Training for metric learning
     trainer = WithAutocastTrainWithClassifier(cfg.trainer.use_amp, models,
             optimizers,
