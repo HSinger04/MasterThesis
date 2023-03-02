@@ -1,4 +1,6 @@
 num_epochs: 4
+save_epochs:
+  - 2
 batch_size: 16
 iterations_per_epoch: 5
 dataloader_num_workers: 4

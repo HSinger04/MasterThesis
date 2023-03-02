@@ -133,7 +133,7 @@ def stt_hook(trainer, warm_up_epoch, base_lr, lr_decay_rate, step):
         else:
             raise ValueError()
 
-def get_end_of_epoch_hook(hooks, orig_end_of_epoch_hook, model_name, val_size, **kwargs):
+def get_end_of_epoch_hook(hooks, orig_end_of_epoch_hook, model_name, val_size, save_epochs, **kwargs):
     from functools import partial
 
     def dummy_hook(trainer):
@@ -155,8 +155,12 @@ def get_end_of_epoch_hook(hooks, orig_end_of_epoch_hook, model_name, val_size, *
             save_model_dir = "example_saved_models"
             if osp.exists(save_model_dir):
                 for filename in os.listdir(save_model_dir):
-                    file_path = os.path.join(save_model_dir, filename)
-                    os.unlink(file_path)
+                    for save_epoch in save_epochs:
+                        if str(save_epoch) in filename:
+                            break
+                    else:
+                        file_path = os.path.join(save_model_dir, filename)
+                        os.unlink(file_path)
             hooks.do_save_models = True
             hooks.save_models(trainer, save_model_dir, str(trainer.epoch))
             return True
@@ -302,7 +306,7 @@ def train_app(cfg):
     tester.embedding_filename=data_dir+"/"+experiment_name+".pkl"
     # Records metric after each epoch on one-shot validation data.
     orig_end_of_epoch_hook = hooks.end_of_epoch_hook(tester, dataset_dict, model_folder, splits_to_eval=[('val', ['samples'])])
-    end_of_epoch_hook = get_end_of_epoch_hook(hooks, orig_end_of_epoch_hook, cfg.model.model_name, len(val_dataset), **cfg.end_of_epoch_hook.kwargs)
+    end_of_epoch_hook = get_end_of_epoch_hook(hooks, orig_end_of_epoch_hook, cfg.model.model_name, len(val_dataset), cfg.trainer.save_epochs, **cfg.end_of_epoch_hook.kwargs)
     # Training for metric learning
     trainer = WithAutocastTrainWithClassifier(cfg.trainer.use_amp, models,
             optimizers,
