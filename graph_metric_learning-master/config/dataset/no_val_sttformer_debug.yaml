@@ -7,11 +7,11 @@ dataset_split:
   val_classes: []
   mem_limits:
     val_samples:
-      100000
+      0
     val:
-      100000
+      0
     train:
-      22500
+      0
 debug:
   true
 data_kwargs:

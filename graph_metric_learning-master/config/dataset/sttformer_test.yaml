@@ -29,7 +29,7 @@ dataset_split:
     val_samples:
       0
     val:
-      20000
+      0
     train:
       0
 debug:

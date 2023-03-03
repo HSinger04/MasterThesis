@@ -16,11 +16,11 @@ dataset_split:
     - 110
   mem_limits:
     val_samples:
-      100000
+      0
     val:
-      100000
+      0
     train:
-      33333
+      0
 debug:
   false
 data_kwargs:
