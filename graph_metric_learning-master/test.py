@@ -7,10 +7,10 @@ import torch
 import numpy as np
 from torch.utils.data import DataLoader
 import hydra
+from pytorch_metric_learning.utils import logging_presets, inference, accuracy_calculator
 from pytorch_metric_learning.utils import common_functions as c_f
-from pytorch_metric_learning.utils import logging_presets, inference
-from pytorch_metric_learning.utils import common_functions as c_f
-from sklearn.metrics import silhouette_score, confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import silhouette_score, confusion_matrix, ConfusionMatrixDisplay, adjusted_mutual_info_score, \
+    normalized_mutual_info_score
 import matplotlib.pyplot as plt
 import umap
 from cycler import cycler
@@ -36,6 +36,7 @@ def visualizer_hook(umapper, umap_embeddings, labels, split_name, keyname, *args
         idx = labels == label_set[i]
         plt.scatter(umap_embeddings[idx, 0], umap_embeddings[idx, 1], marker=".", s=1, label=label_set[i] + 1)
 
+    plt.legend()
     plt.savefig("UMAP_split_{}_label_set_{}.png".format(split_name.upper(), keyname.upper()))
     plt.show()
 
@@ -81,8 +82,6 @@ def main(cfg):
         models, model_suffix, cfg.mode.model_folder, device, log_if_successful=True
     )
 
-    dataset_dict = {"samples": test_samples_dataset, "test": test_dataset}
-
     # Confusion matrix
     im = inference.InferenceModel(trunk, embedder)
     im.train_knn(test_samples_dataset)
@@ -121,23 +120,41 @@ def main(cfg):
         batch_size=cfg.tester.batch_size,
         dataloader_num_workers=cfg.tester.dataloader_num_workers,
         visualizer=umap.UMAP(),
-        visualizer_hook=visualizer_hook
+        visualizer_hook=visualizer_hook,
+        accuracy_calculator=accuracy_calculator.AccuracyCalculator(k=1)
     )
 
-    # Silhouette score
+    # FAQ: Most of the metrics of Pytorch Metric Learning do not use the true label, but labels predicted via
+    # k-means-clustering and thus do not record the metrics the way we would be interested.
+    # See https://github.com/KevinMusgrave/pytorch-metric-learning/discussions/595
+
+    # # Other metrics from Pytorch Metric Learning
+    # dataset_dict = {"samples": test_samples_dataset, "test": test_dataset}
+    # test_results = tester.test(dataset_dict, epoch, trunk, embedder, splits_to_eval=[('test', ['samples'])])
+    #
+    # # Assert for some metrics that they were calculated correctly
+    # assert np.allclose(np.sum([cm[i][i] for i in range(cm.shape[0])]) / len(test_dataset), test_results["test"]["r_precision_level0"])
+
+    test_results = {"test": dict()}
+    # Record accuracy
+    test_results["test"]["accuracy"] = np.sum([cm[i][i] for i in range(cm.shape[0])]) / len(test_dataset)
+
+    # Other metrics that are based on the embeddings and true labels
     embeddings, labels = tester.get_all_embeddings(test_dataset, trunk, embedder, return_as_numpy=True)
-    silh_score = silhouette_score(embeddings, labels)
+    embed_label_metrics = [silhouette_score]
+    for embed_label_metric in embed_label_metrics:
+        test_results["test"][embed_label_metric.__name__] = embed_label_metric(embeddings, labels)
 
-    # TODO: Visualization differs from when computing umap on the embeddings and labels of tester.get_all_embeddings
-    # Other metrics
-    test_results = tester.test(dataset_dict, epoch, trunk, embedder, splits_to_eval=[('test', ['samples'])])
+    # Other metrics that are based on the true and predicted labels
+    true_pred_labels_metrics = [adjusted_mutual_info_score, normalized_mutual_info_score]
+    for true_pred_labels_metric in true_pred_labels_metrics:
+        test_results["test"][true_pred_labels_metric.__name__] = true_pred_labels_metric(true_labels, pred_labels)
 
-    # Assert that accuracy was calculated correctly
-    assert np.allclose(np.sum([cm[i][i] for i in range(cm.shape[0])]) / len(test_dataset), test_results["test"]["r_precision_level0"])
+    # Change any float32 anf float64 to float so that they can be dumped
+    for key in test_results["test"].keys():
+        if test_results["test"][key].__class__ in [np.float64, np.float32]:
+            test_results["test"][key] = float(test_results["test"][key])
 
-    # Record other metrics
-    silh_score = float(silh_score)
-    test_results["test"]["silhouette_score"] = silh_score
     with open('test_results.json', 'w') as fp:
         json.dump(test_results, fp)
 

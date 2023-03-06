@@ -67,8 +67,9 @@ class MLP(nn.Module):
     def forward(self, x):
         return self.net(x)
 
+
 def get_datasets(data_dir, cfg, mode="train"):
-    data_path = "/home/work/PycharmProjects/MA/MasterThesis/graph_metric_learning-master"
+    data_path = "../../"
 
     debug_val = 128
 
@@ -93,6 +94,7 @@ def get_datasets(data_dir, cfg, mode="train"):
 # Timing utilities
 start_time = None
 
+
 def start_timer():
     global start_time
     gc.collect()
@@ -100,6 +102,7 @@ def start_timer():
     torch.cuda.reset_max_memory_allocated()
     torch.cuda.synchronize()
     start_time = time.time()
+
 
 def get_time_and_memory():
     torch.cuda.synchronize()
@@ -170,6 +173,7 @@ def train_app(cfg, use_amp, base_class, num_false_tests=None, num_tests=None, em
     actual_acc = test_result["val"]["precision_at_1_level0"]
     desired_acc = 1 - (num_false_tests / num_tests)
     return actual_acc, desired_acc, time, mem
+
 
 def test_autocast_equivalence():
     num_false_tests = 10

@@ -121,7 +121,7 @@ class Identity(nn.Module):
         return x
 
 def get_datasets(data_dir, cfg, mode="train"):
-    data_path = "/home/work/PycharmProjects/MA/MasterThesis/graph_metric_learning-master"
+    data_path = "../../"
 
     debug_val = 128
 
