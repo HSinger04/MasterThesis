@@ -386,7 +386,16 @@ if __name__ == "__main__":
                            "Do you want to delete old directory? If yes, type 'yes'. Otherwise, type anything else: ")
             if answer == "yes":
                 print("Removing directory!")
-                rmtree(old_out_dir)
+                for filename in os.listdir(old_out_dir):
+                    file_path = os.path.join(old_out_dir, filename)
+                    for dataset_path in feeder.VAL_DATASET + feeder.VAL_SAMPLES_DATASET + feeder.TRAIN_DATASET:
+                        if dataset_path in file_path:
+                            break
+                    else:
+                        if os.path.isfile(file_path) or os.path.islink(file_path):
+                            os.unlink(file_path)
+                        elif os.path.isdir(file_path):
+                            rmtree(file_path)
             else:
                 raise ValueError("Directory for config already exists.")
     else:

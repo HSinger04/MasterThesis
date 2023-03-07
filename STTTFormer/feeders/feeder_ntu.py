@@ -63,16 +63,23 @@ class Feeder(Dataset):
             self.label = np.load(osp.join(self.data_path, "y_" + self.split + ".npy"))
             self.sample_name = np.load(osp.join(self.data_path, "names_" + self.split + ".npy"))
 
-        self.sample_name = np.char.add(self.sample_name, ".skeleton")
+        if not np.sum(np.core.defchararray.find(self.sample_name, ".skeleton")!=-1) == self.__len__():
+            self.sample_name = np.char.add(self.sample_name, ".skeleton")
 
-        self.label = np.where(self.label > 0)[1]
+        try:
+            self.label = np.where(self.label > 0)[1]
+        except IndexError:
+            pass
 
 
         if self.split not in ("train", "test", "sample", "test_and_sample"):
             raise NotImplementedError('data split only supports train/test')
 
-        N, T, _ = self.data.shape
-        self.data = self.data.reshape((N, T, 2, 25, 3)).transpose(0, 4, 1, 3, 2)
+        try:
+            N, T, _ = self.data.shape
+            self.data = self.data.reshape((N, T, 2, 25, 3)).transpose(0, 4, 1, 3, 2)
+        except ValueError:
+            pass
 
 
     def get_mean_map(self):
