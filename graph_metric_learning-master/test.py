@@ -32,6 +32,8 @@ def visualizer_hook(umapper, umap_embeddings, labels, split_name, keyname, *args
         )
     )
 
+    if umapper is None:
+        labels = labels.flatten()
     for i in range(num_classes):
         idx = labels == label_set[i]
         plt.scatter(umap_embeddings[idx, 0], umap_embeddings[idx, 1], marker=".", s=1, label=label_set[i] + 1)
@@ -75,8 +77,13 @@ def main(cfg):
     # Package the above stuff into dictionaries.
     models = {"trunk": trunk, "embedder": embedder, "classifier": classifier}
 
-    epoch, model_suffix = c_f.latest_version(
-        cfg.mode.model_folder, "trunk_*.pth", best=cfg.mode.use_best)
+    try:
+        epoch, model_suffix = c_f.latest_version(
+            cfg.mode.model_folder, "trunk_*.pth", best=cfg.mode.use_best)
+    except ValueError:
+        print('If the mode config uses use_best: true, maybe there is no saved model with'
+              '"best" in the .pth files. If so, just add "best" before the epoch number')
+        raise
 
     c_f.load_dict_of_models(
         models, model_suffix, cfg.mode.model_folder, device, log_if_successful=True
@@ -124,8 +131,10 @@ def main(cfg):
         accuracy_calculator=accuracy_calculator.AccuracyCalculator(k=1)
     )
 
+    test_results = {"test": dict()}
+
     # FAQ: Most of the metrics of Pytorch Metric Learning do not use the true label, but labels predicted via
-    # k-means-clustering and thus do not record the metrics the way we would be interested.
+    # k-means-clustering and thus do not record the metrics the way we would be interested in.
     # See https://github.com/KevinMusgrave/pytorch-metric-learning/discussions/595
 
     # # Other metrics from Pytorch Metric Learning
@@ -135,7 +144,6 @@ def main(cfg):
     # # Assert for some metrics that they were calculated correctly
     # assert np.allclose(np.sum([cm[i][i] for i in range(cm.shape[0])]) / len(test_dataset), test_results["test"]["r_precision_level0"])
 
-    test_results = {"test": dict()}
     # Record accuracy
     test_results["test"]["accuracy"] = np.sum([cm[i][i] for i in range(cm.shape[0])]) / len(test_dataset)
 
@@ -144,6 +152,10 @@ def main(cfg):
     embed_label_metrics = [silhouette_score]
     for embed_label_metric in embed_label_metrics:
         test_results["test"][embed_label_metric.__name__] = embed_label_metric(embeddings, labels)
+
+    # Visualize via umap embedding
+    umap_embeddings = umap.UMAP().fit_transform(embeddings)
+    visualizer_hook(None, umap_embeddings, labels, "TEST", "TEST")
 
     # Other metrics that are based on the true and predicted labels
     true_pred_labels_metrics = [adjusted_mutual_info_score, normalized_mutual_info_score]
