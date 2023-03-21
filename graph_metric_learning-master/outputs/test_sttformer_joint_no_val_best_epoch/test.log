@@ -1,0 +1,4 @@
+[2023-03-21 10:19:25,581][PML][INFO] - LOAD ../train_sttformer_joint_no_val/example_saved_models/trunk_best33.pth
+[2023-03-21 10:19:25,583][PML][INFO] - LOAD ../train_sttformer_joint_no_val/example_saved_models/embedder_best33.pth
+[2023-03-21 10:19:25,584][PML][INFO] - LOAD ../train_sttformer_joint_no_val/example_saved_models/classifier_best33.pth
+[2023-03-21 10:29:09,940][root][INFO] - UMAP plot for the TEST split and label set TEST
