@@ -164,19 +164,9 @@ def get_data_from_idxs(data, idxs, mmap_dict={"mmap_filename": "temp", "mem_limi
     return data, filename
 
 
-def save_dataset(save_path, dataset):
-    if save_path.endswith(".npy"):
-        save_path = save_path[:-4]
-    with open(save_path + "_data.npy", "wb") as f:
-        np.save(f, dataset.data)
-    with open(save_path + "_labels.npy", "wb") as f:
-        np.save(f, dataset.label)
-    with open(save_path + "_names.npy", "wb") as f:
-        np.save(f, dataset.sample_name)
-
-
 def get_train_and_os_val(feeder_class, data_path, label_path, name_path, val_classes, val_sample_names,
-                         mem_limits={"val_samples": 0, "val": 0, "train": 0}, debug=False, data_kwargs={}):
+                         mem_limits={"val_samples": 0, "val": 0, "train": 0}, data_split_path="", debug=False,
+                         data_kwargs={}):
     """ Of the original train dataset given by data_path and label_path, generate the true train dataset that
     the model gets trained on as well as a one-shot validation dataset and corresponding samples for it.
 
@@ -270,11 +260,6 @@ def get_train_and_os_val(feeder_class, data_path, label_path, name_path, val_cla
                                                           "mem_limit": mem_limits["train"]})
 
             assert orig_train_length == len(val_samples_dataset) + len(val_dataset) + len(train_dataset)
-
-            # Save the datasets
-            save_dataset("val_samples", val_samples_dataset)
-            save_dataset("val", val_dataset)
-            save_dataset("train", train_dataset)
 
         else:
             train_dataset = feeder_class(data_path, label_path, name_path, use_mmap=bool(mem_limits["train"]), **data_kwargs["train"])

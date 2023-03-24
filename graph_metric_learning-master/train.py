@@ -1,7 +1,13 @@
 """ File for metric learning. """
+from functools import partial
+import logging
+from shutil import rmtree
 import sys
 import os
 import os.path as osp
+
+import omegaconf.errors
+
 sys.path.append(osp.dirname(osp.dirname(osp.dirname(__file__))))
 
 # The testing module requires faiss
@@ -12,10 +18,8 @@ import record_keeper
 import pytorch_metric_learning.utils.logging_presets as logging_presets
 #from torchvision import datasets, models, transforms
 #import torchvision
-import logging
 import yaml
 import warnings
-from shutil import rmtree
 from argparse import ArgumentParser
 logging.getLogger().setLevel(logging.INFO)
 
@@ -49,6 +53,7 @@ torch.backends.cudnn.benchmark = False
 
 # Constants
 STTFORMER = "sttformer"
+HD_GCN = "hd-gcn"
 
 class MLP(nn.Module):
     # layer_sizes[0] is the dimension of the input
@@ -134,7 +139,6 @@ def stt_hook(trainer, warm_up_epoch, base_lr, lr_decay_rate, step):
             raise ValueError()
 
 def get_end_of_epoch_hook(hooks, orig_end_of_epoch_hook, model_name, val_size, save_epochs, **kwargs):
-    from functools import partial
 
     def dummy_hook(trainer):
         pass
@@ -145,13 +149,16 @@ def get_end_of_epoch_hook(hooks, orig_end_of_epoch_hook, model_name, val_size, s
 
     custom_hook = partial(actual_hook_to_use, **kwargs)
 
+    # If training on dataset with val split
     if val_size:
         def true_hook(trainer):
             custom_hook(trainer)
             return orig_end_of_epoch_hook(trainer)
+    # If training on full dataset
     else:
         def true_hook(trainer):
             custom_hook(trainer)
+            # Only save models of epochs in save_epochs
             save_model_dir = "example_saved_models"
             if osp.exists(save_model_dir):
                 for filename in os.listdir(save_model_dir):
@@ -164,6 +171,52 @@ def get_end_of_epoch_hook(hooks, orig_end_of_epoch_hook, model_name, val_size, s
             hooks.do_save_models = True
             hooks.save_models(trainer, save_model_dir, str(trainer.epoch))
             return True
+
+    return true_hook
+
+def hd_gcn_hook(trainer, warm_up_epoch, base_lr, lr_ratio):
+    for optimizer in trainer.optimizers.values():
+        if isinstance(optimizer, torch.optim.SGD) or isinstance(optimizer, torch.optim.Adam):
+            epoch = 0
+            try:
+                epoch = trainer.epoch
+            except AttributeError:
+                pass
+            if epoch < warm_up_epoch:
+                new_lr = base_lr * (epoch + 1) / warm_up_epoch
+            else:
+                # lr = self.arg.base_lr * (
+                #         self.arg.lr_decay_rate ** np.sum(epoch >= np.array(self.arg.step)))
+                # TODO: Access train dataloader and self.arg.num_epoch == how many epochs in total
+                T_max = len(self.data_loader['train']) * (self.arg.num_epoch - warm_up_epoch)
+                # TODO: idx is the current batch's idx, I guess - though I find this really weird and not sure
+                # if it's actually intended or not.
+                T_cur = len(self.data_loader['train']) * (epoch - warm_up_epoch) + idx
+
+                eta_min = base_lr * lr_ratio
+                lr = eta_min + 0.5 * (base_lr - eta_min) * (1 + np.cos((T_cur / T_max) * np.pi))
+            for param_group in optimizer.param_groups:
+                param_group['lr'] = new_lr
+            return new_lr
+        else:
+            raise ValueError()
+
+# TODO: Complete this rn
+def get_end_of_iteration_hook(hooks, orig_end_of_epoch_hook, model_name, **kwargs):
+    from functools import partial
+
+    def dummy_hook(trainer):
+        pass
+
+    actual_hook_to_use = dummy_hook
+    if HD_GCN in model_name:
+        actual_hook_to_use = hd_gcn_hook
+
+    custom_hook = partial(actual_hook_to_use, **kwargs)
+
+    def true_hook(trainer):
+        custom_hook(trainer)
+        orig_end_of_epoch_hook(trainer)
 
     return true_hook
 
@@ -299,14 +352,31 @@ def train_app(cfg):
         cfg.tester.use_amp,
         batch_size=cfg.tester.batch_size,
         dataloader_num_workers=cfg.tester.dataloader_num_workers,
-            end_of_testing_hook=hooks.end_of_testing_hook, 
+            end_of_testing_hook=hooks.end_of_testing_hook,
             #size_of_tsne=20
             )
 
     tester.embedding_filename=data_dir+"/"+experiment_name+".pkl"
     # Records metric after each epoch on one-shot validation data.
+
+    # Define potentially custom end_of_epoch or end_of_iteration_hook
     orig_end_of_epoch_hook = hooks.end_of_epoch_hook(tester, dataset_dict, model_folder, splits_to_eval=[('val', ['samples'])])
-    end_of_epoch_hook = get_end_of_epoch_hook(hooks, orig_end_of_epoch_hook, cfg.model.model_name, len(val_dataset), cfg.trainer.save_epochs, **cfg.end_of_epoch_hook.kwargs)
+    epoch_hook_kwargs = {}
+    try:
+        epoch_hook_kwargs = cfg.end_of_epoch_hook.kwargs
+    except omegaconf.errors.ConfigAttributeError:
+        pass
+    end_of_epoch_hook = get_end_of_epoch_hook(hooks, orig_end_of_epoch_hook, cfg.model.model_name, len(val_dataset), cfg.trainer.save_epochs, **epoch_hook_kwargs)
+
+    # TODO: Need an iteration hook for HD-GCN
+    orig_end_of_iteration_hook = hooks.end_of_iteration_hook
+    iteration_hook_kwargs = {}
+    try:
+        iteration_hook_kwargs = cfg.end_of_iteration_hook.kwargs
+    except omegaconf.errors.ConfigAttributeError:
+        pass
+    end_of_iteration_hook = get_end_of_iteration_hook(hooks, orig_end_of_iteration_hook, cfg.model.model_name, **iteration_hook_kwargs)
+
     # Training for metric learning
     trainer = WithAutocastTrainWithClassifier(cfg.trainer.use_amp, models,
             optimizers,
@@ -320,13 +390,17 @@ def train_app(cfg):
             lr_schedulers=schedulers,
             dataloader_num_workers=cfg.trainer.dataloader_num_workers,
             loss_weights=loss_weights,
-            end_of_iteration_hook=hooks.end_of_iteration_hook,
+            end_of_iteration_hook=end_of_iteration_hook,
             end_of_epoch_hook=end_of_epoch_hook
             )
 
     if cfg.model.model_name == STTFORMER:
         assert cfg.end_of_epoch_hook.kwargs.base_lr == cfg.optimizer.optimizer.lr
         stt_hook(trainer, **cfg.end_of_epoch_hook.kwargs)
+
+    elif cfg.model.model_name == HD_GCN:
+        assert cfg.end_of_iteration_hook.kwargs.base_lr == cfg.optimizer.optimizer.lr
+        hd_gcn_hook(trainer, **cfg.end_of_iteration_hook.kwargs)
 
     start_epoch = 1
     if cfg.mode.type in ("train_from_latest", "fine-tune"):
@@ -376,9 +450,23 @@ if __name__ == "__main__":
                 with open(osp.join("config", k, v + ".yaml")) as f:
                     sub_cfg = yaml.load(f, yaml.Loader)
                     if not old_config[k] == sub_cfg:
-                        raise ValueError("Old configuration and current configuration differ!"
-                                         + "\n" + "old sub config: " + str(old_config[k])
-                                         + "\n" + "new sub config: " + str(sub_cfg))
+                        err_msg = "Old configuration and current configuration differ!" \
+                                  + "\n" + "old sub config: " + str(old_config[k])\
+                                  + "\n" + "new sub config: " + str(sub_cfg)
+
+                        if k == "dataset":
+                            old_dataset_cfg = old_config[k].copy()
+                            sub_dataset_cfg = sub_cfg.copy()
+
+                            # If just the mem_limits are different, it's no problem that configs differ
+                            del old_dataset_cfg["dataset_split"]["mem_limits"]
+                            del sub_dataset_cfg["dataset_split"]["mem_limits"]
+
+                            if not old_dataset_cfg == sub_dataset_cfg:
+                                raise ValueError(err_msg)
+                        else:
+                            raise ValueError(err_msg)
+
     elif mode_type == "train_from_scratch":
         old_out_dir = osp.join("outputs", sys.argv[sys.argv.index("--config-name") + 1])
         if osp.isdir(osp.join("outputs", sys.argv[sys.argv.index("--config-name") + 1])):

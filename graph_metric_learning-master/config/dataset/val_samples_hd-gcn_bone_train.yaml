@@ -1,4 +1,4 @@
-name: "ntu120_oneshot_sttformer"
+name: "ntu120_oneshot_hd-gcn"
 data_path: "../../../STTTFormer/gendata/ntu120/NTU120_one_shot/x_train.npy"
 label_path: "../../../STTTFormer/gendata/ntu120/NTU120_one_shot/y_train.npy"
 name_path: "../../../STTTFormer/gendata/ntu120/NTU120_one_shot/names_train.npy"
@@ -17,36 +17,35 @@ dataset_split:
     - 110
   mem_limits:
     val_samples:
-      100000
+      0
     val:
-      100000
+      0
     train:
-      33333
+      0
 debug:
   false
 data_kwargs:
   val_samples:
     split: test
-    debug: False
-    window_size: 120
+    window_size: 64
     p_interval: [0.95]
-    vel: False
-    bone: False
+    bone: True
+    debug: False
   val:
     split: test
-    debug: False
-    window_size: 120
+    window_size: 64
     p_interval: [0.95]
-    vel: False
-    bone: False
+    bone: True
+    debug: False
   train:
+    split: train
+    debug: False
     random_choose: False
     random_shift: False
     random_move: False
-    window_size: 120
+    window_size: 64
     normalization: False
     random_rot: True
     p_interval: [0.5, 1]
-    vel: False
     bone: True
 

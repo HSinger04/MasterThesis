@@ -1,0 +1,2 @@
+python3 train.py --config-name train_sttformer_joint_motion_with_val +mode.type=train_from_scratch +mode.model_folder=./outputs/train_sttformer_joint_motion_with_val/example_saved_models
+python3 train.py --config-name train_sttformer_bone_with_val +mode.type=train_from_scratch +mode.model_folder=./outputs/train_sttformer_joint_motion_with_val/example_saved_models
