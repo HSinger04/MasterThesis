@@ -186,9 +186,10 @@ def get_train_and_os_val(feeder_class, data_path, label_path, name_path, val_cla
     if all([osp.exists(x) for x in VAL_SAMPLES_DATASET]) and all([osp.exists(x) for x in VAL_DATASET]) and \
             all([osp.exists(x) for x in TRAIN_DATASET]):
 
-        val_samples_dataset = feeder_class(data_path, label_path, name_path, use_mmap=bool(mem_limits["val_samples"]),
+        temp_dataset = feeder_class(data_path, label_path, name_path, use_mmap=True,
                                            **data_kwargs["val_samples"])
-        orig_train_length = len(val_samples_dataset)
+        orig_train_length = len(temp_dataset)
+        del temp_dataset
 
         val_samples_dataset = feeder_class(VAL_SAMPLES_DATASET[0], VAL_SAMPLES_DATASET[1], VAL_SAMPLES_DATASET[2],
                                            use_mmap=bool(mem_limits["val_samples"]), **data_kwargs["val_samples"])

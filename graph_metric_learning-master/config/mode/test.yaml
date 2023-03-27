@@ -1,4 +1,2 @@
 type: test
-model_folder: ../train_sttformer_joint_with_val/example_saved_models
-old_config: ../train_sttformer_joint_with_val/.hydra/config.yaml
 use_best: true

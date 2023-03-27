@@ -40,6 +40,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from model import agcn, msg3d
 from MasterThesis.STTTFormer.model import sttformer
+from MasterThesis.HD_GCN_main.model import HDGCN
 from graph import ntu_rgb_d
 from feeders import feeder
 from trainer.with_autocast_train_with_classifier import WithAutocastTrainWithClassifier
@@ -54,6 +55,7 @@ torch.backends.cudnn.benchmark = False
 # Constants
 STTFORMER = "sttformer"
 HD_GCN = "hd-gcn"
+MSG3D = "msg3d"
 
 class MLP(nn.Module):
     # layer_sizes[0] is the dimension of the input
@@ -80,7 +82,7 @@ class MLP(nn.Module):
 def get_datasets(model_name, data_path, label_path, name_path, val_classes, mem_limits={"val_samples": 0, "val": 0, "train": 0}, debug=False, data_kwargs={}):
 
     feeder_class = feeder.Feeder
-    if model_name == STTFORMER:
+    if model_name == STTFORMER or HD_GCN in model_name:
         from MasterThesis.STTTFormer.feeders import feeder_ntu
         feeder_class = feeder_ntu.Feeder
 
@@ -174,7 +176,7 @@ def get_end_of_epoch_hook(hooks, orig_end_of_epoch_hook, model_name, val_size, s
 
     return true_hook
 
-def hd_gcn_hook(trainer, warm_up_epoch, base_lr, lr_ratio):
+def hd_gcn_hook(trainer, warm_up_epoch, base_lr, lr_ratio, num_epochs):
     for optimizer in trainer.optimizers.values():
         if isinstance(optimizer, torch.optim.SGD) or isinstance(optimizer, torch.optim.Adam):
             epoch = 0
@@ -187,21 +189,17 @@ def hd_gcn_hook(trainer, warm_up_epoch, base_lr, lr_ratio):
             else:
                 # lr = self.arg.base_lr * (
                 #         self.arg.lr_decay_rate ** np.sum(epoch >= np.array(self.arg.step)))
-                # TODO: Access train dataloader and self.arg.num_epoch == how many epochs in total
-                T_max = len(self.data_loader['train']) * (self.arg.num_epoch - warm_up_epoch)
-                # TODO: idx is the current batch's idx, I guess - though I find this really weird and not sure
-                # if it's actually intended or not.
-                T_cur = len(self.data_loader['train']) * (epoch - warm_up_epoch) + idx
+                T_max = len(trainer.dataloader) * (num_epochs - warm_up_epoch)
+                T_cur = len(trainer.dataloader) * (epoch - warm_up_epoch) + trainer.iteration
 
                 eta_min = base_lr * lr_ratio
-                lr = eta_min + 0.5 * (base_lr - eta_min) * (1 + np.cos((T_cur / T_max) * np.pi))
+                new_lr = eta_min + 0.5 * (base_lr - eta_min) * (1 + np.cos((T_cur / T_max) * np.pi))
             for param_group in optimizer.param_groups:
                 param_group['lr'] = new_lr
             return new_lr
         else:
             raise ValueError()
 
-# TODO: Complete this rn
 def get_end_of_iteration_hook(hooks, orig_end_of_epoch_hook, model_name, **kwargs):
     from functools import partial
 
@@ -226,11 +224,17 @@ def get_trunk(cfg):
         trunk = sttformer.Model(**cfg.model.model_args)
         trunk.fc = nn.Identity()
         trunk_output_size = cfg.model.model_args["config"][-1][1]
-    elif cfg.model.model_name == "msg3d":
+    elif HD_GCN in cfg.model.model_name:
+        trunk = HDGCN.Model(**cfg.model.model_args)
+        trunk_output_size = trunk.fc.in_features
+        trunk.fc = nn.Identity()
+    elif cfg.model.model_name == MSG3D:
         trunk = msg3d.Model(graph="graph.ntu_rgb_d.AdjMatrixGraph", num_class=100, num_point=25, num_person=2, num_gcn_scales=13, num_g3d_scales=6)
         trunk_output_size = trunk.fc.in_features
 
         trunk.fc = nn.Identity()
+    else:
+        raise NotImplementedError("Unsupported model")
 
     return trunk, trunk_output_size
 
@@ -318,7 +322,7 @@ def train_app(cfg):
     loss_weights = {"metric_loss": cfg.loss.metric_loss, "classifier_loss": cfg.loss.classifier_loss}
 
     schedulers = None
-    if not cfg.model.model_name == STTFORMER:
+    if cfg.model.model_name == MSG3D:
         schedulers = {
                 #"metric_loss_scheduler_by_epoch": torch.optim.lr_scheduler.StepLR(classifier_optimizer, cfg.optimizer.scheduler.step_size, gamma=cfg.optimizer.scheduler.gamma),
                 "embedder_scheduler_by_epoch": torch.optim.lr_scheduler.StepLR(embedder_optimizer, cfg.optimizer.scheduler.step_size, gamma=cfg.optimizer.scheduler.gamma),
@@ -359,7 +363,7 @@ def train_app(cfg):
     tester.embedding_filename=data_dir+"/"+experiment_name+".pkl"
     # Records metric after each epoch on one-shot validation data.
 
-    # Define potentially custom end_of_epoch or end_of_iteration_hook
+    # Define potentially custom end_of_epoch_hook
     orig_end_of_epoch_hook = hooks.end_of_epoch_hook(tester, dataset_dict, model_folder, splits_to_eval=[('val', ['samples'])])
     epoch_hook_kwargs = {}
     try:
@@ -368,7 +372,7 @@ def train_app(cfg):
         pass
     end_of_epoch_hook = get_end_of_epoch_hook(hooks, orig_end_of_epoch_hook, cfg.model.model_name, len(val_dataset), cfg.trainer.save_epochs, **epoch_hook_kwargs)
 
-    # TODO: Need an iteration hook for HD-GCN
+    # ... and end_of_iteration_hook
     orig_end_of_iteration_hook = hooks.end_of_iteration_hook
     iteration_hook_kwargs = {}
     try:
@@ -400,6 +404,7 @@ def train_app(cfg):
 
     elif cfg.model.model_name == HD_GCN:
         assert cfg.end_of_iteration_hook.kwargs.base_lr == cfg.optimizer.optimizer.lr
+        assert cfg.end_of_iteration_hook.kwargs.num_epochs == cfg.trainer.num_epochs
         hd_gcn_hook(trainer, **cfg.end_of_iteration_hook.kwargs)
 
     start_epoch = 1
