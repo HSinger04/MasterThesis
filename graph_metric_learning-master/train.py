@@ -346,6 +346,11 @@ def train_app(cfg):
     #                                                                                               )
     dataset_dict = {"samples": val_samples_dataset, "val": val_dataset}
     experiment_name = hydra.core.hydra_config.HydraConfig.get().job.config_name
+
+    # Change name if it didn't use the default settings
+    if not cfg.embedder.size == 128:
+        experiment_name += "_embedder_size_" + str(cfg.embedder.size)
+
     record_keeper, _, _ = logging_presets.get_record_keeper("logs", "tensorboard",
                                                             is_new_experiment=cfg.mode.type=="train_from_scratch")
     hooks = logging_presets.get_hook_container(record_keeper, primary_metric=cfg.tester.metric)
@@ -382,12 +387,12 @@ def train_app(cfg):
     end_of_iteration_hook = get_end_of_iteration_hook(hooks, orig_end_of_iteration_hook, cfg.model.model_name, **iteration_hook_kwargs)
 
     # Training for metric learning
-    trainer = WithAutocastTrainWithClassifier(cfg.trainer.use_amp, models,
-            optimizers,
-            batch_size,
-            loss_funcs,
-            mining_funcs,
-            train_dataset,
+    trainer = WithAutocastTrainWithClassifier(cfg.trainer.use_amp, models=models,
+            optimizers=optimizers,
+            batch_size=batch_size,
+            loss_funcs=loss_funcs,
+            mining_funcs=mining_funcs,
+            dataset=train_dataset,
             iterations_per_epoch=cfg.trainer.iterations_per_epoch,
             # How the data gets sampled
             sampler=sampler,
@@ -429,8 +434,9 @@ if __name__ == "__main__":
     #                                            'folder to load the model from', default=None)
 
     from omegaconf import OmegaConf
+    config_name = sys.argv[sys.argv.index("--config-name") + 1]
 
-    with open(osp.join("config", sys.argv[sys.argv.index("--config-name") + 1] + ".yaml")) as cfg_file:
+    with open(osp.join("config", config_name + ".yaml")) as cfg_file:
         cfg = yaml.load(cfg_file, yaml.Loader)["defaults"]
 
     mode_type = None
@@ -446,7 +452,7 @@ if __name__ == "__main__":
         elif model_folder_str in arg:
             model_folder = arg[arg.find(model_folder_str) + len(model_folder_str):]
     if mode_type in ("train_from_latest", "fine-tune"):
-        with open(osp.join(osp.dirname(model_folder), ".hydra/config.yaml"), "r") as f:
+        with open(osp.join(osp.dirname(osp.join(".", "outputs", config_name, model_folder)), ".hydra/config.yaml"), "r") as f:
             old_config = yaml.load(f, yaml.Loader)
             old_config.pop("mode", None)
             for a_config in cfg:
