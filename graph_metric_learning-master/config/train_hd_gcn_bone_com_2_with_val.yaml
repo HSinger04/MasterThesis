@@ -1,6 +1,6 @@
 defaults:
-  - model: hd-gcn_bone_com_1
-  - dataset: val_samples_hd-gcn_bone_train.yaml
+  - model: hd-gcn_bone_com_2
+  - dataset: val_samples_hd-gcn_bone_train
   - optimizer: hd-gcn
   - miner: multi_similarity
   - embedder_loss: triplet_margin
@@ -12,4 +12,4 @@ defaults:
   - end_of_iteration_hook: hd-gcn
 hydra:
   run:
-    dir: ./outputs/train_hd-gcn_bone_com_1_with_val
+    dir: ./outputs/train_hd-gcn_bone_com_2_with_val

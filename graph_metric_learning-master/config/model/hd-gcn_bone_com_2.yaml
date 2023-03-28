@@ -6,4 +6,4 @@ model_args:
   graph: graph.ntu_rgb_d_hierarchy.Graph
   graph_args:
     labeling_mode: 'spatial'
-    CoM: 1
+    CoM: 2

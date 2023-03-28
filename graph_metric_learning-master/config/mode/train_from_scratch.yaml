@@ -1,2 +1,2 @@
 type: train_from_scratch
-model_folder: null
+model_folder: example_saved_models

@@ -1,0 +1,15 @@
+defaults:
+  - model: sttformer
+  - dataset: no_val_sttformer_joint_motion_train
+  - optimizer: sttformer
+  - miner: multi_similarity
+  - embedder_loss: triplet_margin
+  - trainer: sttformer_train
+  - tester: sttformer_no_amp
+  - loss: default
+  - embedder: default
+  - transform: minimal
+  - end_of_epoch_hook: sttformer
+hydra:
+  run:
+    dir: ./outputs/train_sttformer_joint_motion_no_val
