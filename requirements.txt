@@ -9,6 +9,7 @@ certifi==2022.12.7
 charset-normalizer==2.1.1
 contourpy==1.0.7
 cycler==0.11.0
+einops==0.6.0
 exceptiongroup==1.1.0
 faiss-gpu==1.7.2
 fonttools==4.38.0
@@ -31,17 +32,13 @@ matplotlib==3.6.3
 multidict==6.0.4
 numba==0.56.4
 numpy==1.23.5
-nvidia-cublas-cu11==11.10.3.66
-nvidia-cuda-nvrtc-cu11==11.7.99
-nvidia-cuda-runtime-cu11==11.7.99
-nvidia-cudnn-cu11==8.5.0.96
 oauthlib==3.2.2
 omegaconf==2.3.0
 packaging==23.0
 pickle5==0.0.11
 Pillow==9.4.0
 pluggy==1.0.0
-protobuf==3.20.2
+protobuf==3.20.1
 pyasn1==0.4.8
 pyasn1-modules==0.2.8
 pynndescent==0.5.8

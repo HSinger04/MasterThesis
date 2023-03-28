@@ -1,0 +1,15 @@
+defaults:
+  - model: hd-gcn_joint_com_21
+  - dataset: val_samples_hd-gcn_joint_train.yaml
+  - optimizer: hd-gcn
+  - miner: multi_similarity
+  - embedder_loss: triplet_margin
+  - trainer: hd-gcn_train_with_amp
+  - tester: hd-gcn_no_amp
+  - loss: default
+  - embedder: default
+  - transform: minimal
+  - end_of_iteration_hook: hd-gcn
+hydra:
+  run:
+    dir: ./outputs/train_hd-gcn_joint_com_21_with_val
