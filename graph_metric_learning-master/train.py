@@ -424,6 +424,8 @@ def train_app(cfg):
         except (TypeError):
             raise ValueError('Specify cfg.mode.model_folder. You can do this by adding e.g. '
                              '+mode.model_name=your_model_folder as a command-line argument.')
+        if start_epoch == 1:
+            raise ValueError("No latest model found in model_folder")
 
     trainer.train(start_epoch=start_epoch, num_epochs=num_epochs)
 
@@ -475,6 +477,17 @@ if __name__ == "__main__":
 
                             if not old_dataset_cfg == sub_dataset_cfg:
                                 raise ValueError(err_msg)
+                        elif k == "trainer":
+                            old_dataset_cfg = old_config[k].copy()
+                            sub_dataset_cfg = sub_cfg.copy()
+
+                            # If just the save_epochs are different, it's no problem that configs differ
+                            del old_dataset_cfg["save_epochs"]
+                            #del sub_dataset_cfg["save_epochs"]
+
+                            if not old_dataset_cfg == sub_dataset_cfg:
+                                raise ValueError(err_msg)
+
                         else:
                             raise ValueError(err_msg)
 
