@@ -11,6 +11,7 @@ from pytorch_metric_learning.utils import logging_presets, inference, accuracy_c
 from pytorch_metric_learning.utils import common_functions as c_f
 from sklearn.metrics import silhouette_score, confusion_matrix, ConfusionMatrixDisplay, adjusted_mutual_info_score, \
     normalized_mutual_info_score
+from sklearn.preprocessing import normalize
 import matplotlib.pyplot as plt
 import umap
 from cycler import cycler
@@ -39,7 +40,7 @@ def visualizer_hook(umapper, umap_embeddings, labels, split_name, keyname, *args
         plt.scatter(umap_embeddings[idx, 0], umap_embeddings[idx, 1], marker=".", s=1, label=label_set[i] + 1)
 
     plt.legend()
-    plt.savefig("UMAP_split_{}_label_set_{}.png".format(split_name.upper(), keyname.upper()))
+    plt.savefig("UMAP_split_{}_label_set_{}.svg".format(split_name.upper(), keyname.upper()))
     plt.show()
 
 
@@ -85,8 +86,9 @@ def main(cfg):
               '"best" in the .pth files. If so, just add "best" before the epoch number')
         raise
 
+    # Load model
     c_f.load_dict_of_models(
-        models, model_suffix, cfg.mode.model_folder, device, log_if_successful=True
+        models, model_suffix, cfg.mode.model_folder, device, log_if_successful=True, assert_success=True
     )
 
     # Confusion matrix
@@ -118,7 +120,16 @@ def main(cfg):
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=test_samples_dataset.label + 1)
     _, ax = plt.subplots(figsize=(10, 10))
     disp.plot(ax=ax)
-    plt.savefig("confusion_matrix.png")
+    plt.savefig("confusion_matrix.svg")
+    plt.show()
+
+    # Do the same with normalized cm
+    cm_normalized = normalize(cm, norm="l1").round(decimals=2)
+
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm_normalized, display_labels=test_samples_dataset.label + 1)
+    _, ax = plt.subplots(figsize=(15, 15))
+    disp.plot(ax=ax, values_format=".2f")
+    plt.savefig("confusion_matrix_row_normalized.svg")
     plt.show()
 
     # Create the tester
