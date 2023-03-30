@@ -1,5 +1,5 @@
 defaults:
-  - model: hd-gcn_joint_com_2
+  - model: hd-gcn_com_2
   - dataset: val_samples_hd-gcn_joint_train
   - optimizer: hd-gcn
   - miner: multi_similarity

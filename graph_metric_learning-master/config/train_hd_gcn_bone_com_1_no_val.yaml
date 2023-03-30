@@ -1,5 +1,5 @@
 defaults:
-  - model: hd-gcn_bone_com_1
+  - model: hd-gcn_com_1
   - dataset: no_val_hd-gcn_bone_train
   - optimizer: hd-gcn
   - miner: multi_similarity
