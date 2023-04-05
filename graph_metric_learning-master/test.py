@@ -27,17 +27,18 @@ def visualizer_hook(umapper, umap_embeddings, labels, split_name, keyname, *args
     label_set = np.unique(labels)
     num_classes = len(label_set)
     plt.figure(figsize=(20, 15))
-    plt.gca().set_prop_cycle(
-        cycler(
-            "color", [plt.cm.nipy_spectral(i) for i in np.linspace(0, 0.9, num_classes)]
-        )
-    )
+    # plt.gca().set_prop_cycle(
+    #     cycler(
+    #         "color", [plt.cm.nipy_spectral(i) for i in np.linspace(0, 0.9, num_classes)]
+    #     )
+    # )
+    colors = plt.cm.get_cmap("tab20b").colors
 
     if umapper is None:
         labels = labels.flatten()
-    for i in range(num_classes):
+    for i, c in zip(range(num_classes), colors):
         idx = labels == label_set[i]
-        plt.scatter(umap_embeddings[idx, 0], umap_embeddings[idx, 1], marker=".", s=1, label=label_set[i] + 1)
+        plt.scatter(umap_embeddings[idx, 0], umap_embeddings[idx, 1], marker=".", s=1, c=c, alpha=1, label=label_set[i] + 1)
 
     plt.legend()
     plt.savefig("UMAP_split_{}_label_set_{}.svg".format(split_name.upper(), keyname.upper()))
@@ -128,6 +129,7 @@ def main(cfg):
 
     disp = ConfusionMatrixDisplay(confusion_matrix=cm_normalized, display_labels=test_samples_dataset.label + 1)
     _, ax = plt.subplots(figsize=(15, 15))
+    # Round to 2 decimal points
     disp.plot(ax=ax, values_format=".2f")
     plt.savefig("confusion_matrix_row_normalized.svg")
     plt.show()
