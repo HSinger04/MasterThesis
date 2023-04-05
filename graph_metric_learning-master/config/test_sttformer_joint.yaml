@@ -1,0 +1,10 @@
+defaults:
+  - model: sttformer
+  - dataset: sttformer_test_joint
+  - tester: use_amp_false
+  - embedder: default
+  - mode: test
+hydra:
+  run:
+    dir: ./outputs/test_sttformer_joint
+num_train_labels: 90

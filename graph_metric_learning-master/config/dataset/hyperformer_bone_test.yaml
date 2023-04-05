@@ -1,0 +1,68 @@
+name: "ntu120_oneshot_hyperformer"
+data_path: "../../../STTTFormer/gendata/ntu120/NTU120_one_shot/x_test_and_sample.npy"
+label_path: "../../../STTTFormer/gendata/ntu120/NTU120_one_shot/y_test_and_sample.npy"
+name_path: "../../../STTTFormer/gendata/ntu120/NTU120_one_shot/names_test_and_sample.npy"
+data_dir: "/ntu/hyperformer/"
+dataset_split:
+  val_classes:
+    - 1
+    - 7
+    - 13
+    - 19
+    - 25
+    - 31
+    - 37
+    - 43
+    - 49
+    - 55
+    - 61
+    - 67
+    - 73
+    - 79
+    - 85
+    - 91
+    - 97
+    - 103
+    - 109
+    - 115
+  mem_limits:
+    val_samples:
+      0
+    val:
+      0
+    train:
+      0
+debug:
+  false
+data_kwargs:
+  val_samples:
+    split: test
+    debug: False
+    window_size: 64
+    p_interval: [0.95]
+    vel: False
+    bone: True
+    hyperformer: True
+  val:
+    split: test
+    debug: False
+    window_size: 64
+    p_interval: [0.95]
+    vel: False
+    bone: True
+    hyperformer: True
+  train:
+    random_choose: False
+    random_shift: False
+    random_move: False
+    window_size: 64
+    normalization: False
+    random_rot: True
+    p_interval: [0.5, 1]
+    vel: False
+    bone: True
+    hyperformer: True
+data_loader:
+  batch_size: 16
+  num_workers: 4
+

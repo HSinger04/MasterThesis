@@ -20,15 +20,15 @@ data_kwargs:
     debug: False
     window_size: 120
     p_interval: [0.95]
-    vel: True
-    bone: False
+    vel: False
+    bone: True
   val:
     split: test
     debug: False
     window_size: 120
     p_interval: [0.95]
-    vel: True
-    bone: False
+    vel: False
+    bone: True
   train:
     random_choose: False
     random_shift: False
@@ -37,6 +37,6 @@ data_kwargs:
     normalization: False
     random_rot: True
     p_interval: [0.5, 1]
-    vel: True
-    bone: False
+    vel: False
+    bone: True
 

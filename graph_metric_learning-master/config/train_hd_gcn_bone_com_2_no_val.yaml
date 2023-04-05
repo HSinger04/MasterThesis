@@ -1,0 +1,15 @@
+defaults:
+  - model: hd-gcn_com_2
+  - dataset: no_val_hd-gcn_bone_train
+  - optimizer: hd-gcn
+  - miner: multi_similarity
+  - embedder_loss: triplet_margin
+  - trainer: hd-gcn_train_with_amp
+  - tester: hd-gcn_no_amp
+  - loss: default
+  - embedder: default
+  - transform: minimal
+  - end_of_iteration_hook: hd-gcn
+hydra:
+  run:
+    dir: ./outputs/train_hd-gcn_bone_com_2_no_val

@@ -30,14 +30,14 @@ data_kwargs:
     debug: False
     window_size: 120
     p_interval: [0.95]
-    vel: False
+    vel: True
     bone: False
   val:
     split: test
     debug: False
     window_size: 120
     p_interval: [0.95]
-    vel: False
+    vel: True
     bone: False
   train:
     random_choose: False

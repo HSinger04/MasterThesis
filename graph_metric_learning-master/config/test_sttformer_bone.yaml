@@ -1,0 +1,10 @@
+defaults:
+  - model: sttformer
+  - dataset: sttformer_test_bone
+  - tester: use_amp_false
+  - embedder: default
+  - mode: test
+hydra:
+  run:
+    dir: ./outputs/test_sttformer_bone
+num_train_labels: 90
