@@ -12,4 +12,4 @@ defaults:
   - end_of_iteration_hook: hd-gcn
 hydra:
   run:
-    dir: ./outputs/train_hd-gcn_joint_com_1_no_val
+    dir: ./outputs/train_hd_gcn_joint_com_1_no_val
