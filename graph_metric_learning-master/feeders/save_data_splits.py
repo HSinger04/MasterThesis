@@ -32,7 +32,7 @@ if __name__ == "__main__":
         data_config = yaml.load(f, yaml.Loader)
 
     feeder_class = arg_parser["feeder_class"]
-    if feeder_class == "STTFormer" or feeder_class == "HD-GCN":
+    if feeder_class == "STTFormer" or feeder_class == "HD-GCN" or feeder_class == "Hyperformer":
         arg_parser["feeder_class"] = feeder_ntu.Feeder
 
 
