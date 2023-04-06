@@ -1,0 +1,15 @@
+defaults:
+  - model: hyperformer
+  - dataset: val_samples_hyperformer_joint_train
+  - optimizer: hyperformer
+  - miner: multi_similarity
+  - embedder_loss: triplet_margin
+  - trainer: hyperformer_train_with_amp
+  - tester: hyperformer_no_amp
+  - loss: default
+  - embedder: default
+  - transform: minimal
+  - end_of_epoch_hook: hyperformer
+hydra:
+  run:
+    dir: ./outputs/train_hyperformer_joint_with_val

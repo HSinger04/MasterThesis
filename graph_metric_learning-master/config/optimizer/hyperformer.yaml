@@ -1,0 +1,6 @@
+optimizer:
+  name: "sgd"
+  lr: 0.025
+  weight_decay: 0.0004
+  nesterov: False
+  momentum: 0.9
