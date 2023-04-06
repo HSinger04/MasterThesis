@@ -41,6 +41,7 @@ from omegaconf import DictConfig, OmegaConf
 from model import agcn, msg3d
 from MasterThesis.STTTFormer.model import sttformer
 from MasterThesis.HD_GCN_main.model import HDGCN
+from MasterThesis.Hyperformer.model import Hyperformer
 from graph import ntu_rgb_d
 from feeders import feeder
 from trainer.with_autocast_train_with_classifier import WithAutocastTrainWithClassifier
@@ -53,6 +54,7 @@ torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
 # Constants
+HYPERFORMER = "hyperformer"
 STTFORMER = "sttformer"
 HD_GCN = "hd-gcn"
 MSG3D = "msg3d"
@@ -82,7 +84,7 @@ class MLP(nn.Module):
 def get_datasets(model_name, data_path, label_path, name_path, val_classes, mem_limits={"val_samples": 0, "val": 0, "train": 0}, debug=False, data_kwargs={}):
 
     feeder_class = feeder.Feeder
-    if model_name == STTFORMER or HD_GCN in model_name:
+    if STTFORMER in model_name or HD_GCN in model_name or HYPERFORMER in model_name:
         from MasterThesis.STTTFormer.feeders import feeder_ntu
         feeder_class = feeder_ntu.Feeder
 
@@ -120,10 +122,11 @@ def get_datasets(model_name, data_path, label_path, name_path, val_classes, mem_
 
     return train_dataset, val_dataset, val_samples_dataset
 
-def stt_hook(trainer, warm_up_epoch, base_lr, lr_decay_rate, step):
+
+def stt_and_hyperformer_hook(trainer, warm_up_epoch, base_lr, lr_decay_rate, step):
     # TODO: Gotta see if I do it for all optimizers or not
     for optimizer in trainer.optimizers.values():
-        if isinstance(optimizer, torch.optim.SGD) or isinstance(optimizer, torch.optim.Adam):
+        if isinstance(optimizer, torch.optim.SGD) or isinstance(optimizer, torch.optim.Adam) or isinstance(optimizer, torch.optim.NAdam):
             epoch = 0
             try:
                 epoch = trainer.epoch
@@ -140,14 +143,15 @@ def stt_hook(trainer, warm_up_epoch, base_lr, lr_decay_rate, step):
         else:
             raise ValueError()
 
+
 def get_end_of_epoch_hook(hooks, orig_end_of_epoch_hook, model_name, val_size, save_epochs, **kwargs):
 
     def dummy_hook(trainer):
         pass
 
     actual_hook_to_use = dummy_hook
-    if model_name == STTFORMER:
-        actual_hook_to_use = stt_hook
+    if STTFORMER in model_name or HYPERFORMER in model_name:
+        actual_hook_to_use = stt_and_hyperformer_hook
 
     custom_hook = partial(actual_hook_to_use, **kwargs)
 
@@ -176,6 +180,7 @@ def get_end_of_epoch_hook(hooks, orig_end_of_epoch_hook, model_name, val_size, s
 
     return true_hook
 
+
 def hd_gcn_hook(trainer, warm_up_epoch, base_lr, lr_ratio, num_epochs):
     for optimizer in trainer.optimizers.values():
         if isinstance(optimizer, torch.optim.SGD) or isinstance(optimizer, torch.optim.Adam):
@@ -200,6 +205,7 @@ def hd_gcn_hook(trainer, warm_up_epoch, base_lr, lr_ratio, num_epochs):
         else:
             raise ValueError()
 
+
 def get_end_of_iteration_hook(hooks, orig_end_of_epoch_hook, model_name, **kwargs):
     from functools import partial
 
@@ -220,7 +226,8 @@ def get_end_of_iteration_hook(hooks, orig_end_of_epoch_hook, model_name, **kwarg
 
 
 def get_trunk(cfg):
-    if cfg.model.model_name == STTFORMER:
+    # TODO: Add Hyperformer support
+    if STTFORMER in cfg.model.model_name:
         trunk = sttformer.Model(**cfg.model.model_args)
         trunk.fc = nn.Identity()
         trunk_output_size = cfg.model.model_args["config"][-1][1]
@@ -228,6 +235,10 @@ def get_trunk(cfg):
         trunk = HDGCN.Model(**cfg.model.model_args)
         trunk_output_size = trunk.fc.in_features
         trunk.fc = nn.Identity()
+    elif HYPERFORMER in cfg.model.model_name:
+        trunk = Hyperformer.Model(**cfg.model.model_args)
+        trunk.fc = nn.Identity()
+        trunk_output_size = 24 * trunk.num_of_heads
     elif cfg.model.model_name == MSG3D:
         trunk = msg3d.Model(graph="graph.ntu_rgb_d.AdjMatrixGraph", num_class=100, num_point=25, num_person=2, num_gcn_scales=13, num_g3d_scales=6)
         trunk_output_size = trunk.fc.in_features
@@ -403,15 +414,6 @@ def train_app(cfg):
             end_of_epoch_hook=end_of_epoch_hook
             )
 
-    if cfg.model.model_name == STTFORMER:
-        assert cfg.end_of_epoch_hook.kwargs.base_lr == cfg.optimizer.optimizer.lr
-        stt_hook(trainer, **cfg.end_of_epoch_hook.kwargs)
-
-    elif cfg.model.model_name == HD_GCN:
-        assert cfg.end_of_iteration_hook.kwargs.base_lr == cfg.optimizer.optimizer.lr
-        assert cfg.end_of_iteration_hook.kwargs.num_epochs == cfg.trainer.num_epochs
-        hd_gcn_hook(trainer, **cfg.end_of_iteration_hook.kwargs)
-
     start_epoch = 1
     if cfg.mode.type in ("train_from_latest", "fine-tune"):
         try:
@@ -426,6 +428,17 @@ def train_app(cfg):
                              '+mode.model_name=your_model_folder as a command-line argument.')
         if start_epoch == 1:
             raise ValueError("No latest model found in model_folder")
+
+    # Better not to do this before the training after all, since we would call the hook with the same parameters twice
+    # else:
+    #     if STTFORMER in cfg.model.model_name or HYPERFORMER in cfg.model.model_name:
+    #         assert cfg.end_of_epoch_hook.kwargs.base_lr == cfg.optimizer.optimizer.lr
+    #         stt_and_hyperformer_hook(trainer, **cfg.end_of_epoch_hook.kwargs)
+    #
+    #     elif HD_GCN in cfg.model.model_name:
+    #         assert cfg.end_of_iteration_hook.kwargs.base_lr == cfg.optimizer.optimizer.lr
+    #         assert cfg.end_of_iteration_hook.kwargs.num_epochs == cfg.trainer.num_epochs
+    #         hd_gcn_hook(trainer, **cfg.end_of_iteration_hook.kwargs)
 
     trainer.train(start_epoch=start_epoch, num_epochs=num_epochs)
 
