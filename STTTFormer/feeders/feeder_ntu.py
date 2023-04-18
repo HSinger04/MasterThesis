@@ -6,7 +6,7 @@ import os.path as osp
 class Feeder(Dataset):
     def __init__(self, data_path, label_path=None, names_path=None, p_interval=1, split='train', random_choose=False, random_shift=False,
                  random_move=False, random_rot=False, window_size=-1, normalization=False, debug=False, use_mmap=True,
-                 bone=False, vel=False):
+                 bone=False, vel=False, hyperformer=False):
         """
         data_path:
         label_path:
@@ -40,6 +40,7 @@ class Feeder(Dataset):
         self.random_rot = random_rot
         self.bone = bone
         self.vel = vel
+        self.hyperformer = hyperformer
         self.load_data()
         if normalization:
             self.get_mean_map()
@@ -113,6 +114,19 @@ class Feeder(Dataset):
             for v1, v2 in ntu_pairs:
                 bone_data_numpy[:, :, v1 - 1] = data_numpy[:, :, v1 - 1] - data_numpy[:, :, v2 - 1]
             data_numpy = bone_data_numpy
+
+        # Code from Hyperformer
+        # for joint modality
+        # separate trajectory from relative coordinate to each frame's spine center
+        if not self.bone and self.hyperformer:
+            # # there's a freedom to choose the direction of local coordinate axes!
+            trajectory = data_numpy[:, :, 20]
+            # let spine of each frame be the joint coordinate center
+            data_numpy = data_numpy - data_numpy[:, :, 20:21]
+            #
+            # ## works well with bone, but has negative effect with joint and distance gate
+            data_numpy[:, :, 20] = trajectory
+
         if self.vel:
             data_numpy[:, :-1] = data_numpy[:, 1:] - data_numpy[:, :-1]
             data_numpy[:, -1] = 0
