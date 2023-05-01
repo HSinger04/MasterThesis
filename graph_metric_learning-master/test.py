@@ -1,4 +1,5 @@
 import logging
+import sys
 
 from tqdm import tqdm
 import json
@@ -83,14 +84,17 @@ def main(cfg):
         epoch, model_suffix = c_f.latest_version(
             cfg.mode.model_folder, "trunk_*.pth", best=cfg.mode.use_best)
     except ValueError:
-        print('If the mode config uses use_best: true, maybe there is no saved model with'
+        raise ValueError('If the mode config uses use_best: true, maybe there is no saved model with'
               '"best" in the .pth files. If so, just add "best" before the epoch number')
-        raise
 
     # Load model
-    c_f.load_dict_of_models(
-        models, model_suffix, cfg.mode.model_folder, device, log_if_successful=True, assert_success=True
-    )
+    try:
+        c_f.load_dict_of_models(
+            models, model_suffix, cfg.mode.model_folder, device, log_if_successful=True, assert_success=True
+        )
+    except RuntimeError:
+        print("Likely, you need to adjust num_train_labels.", file=sys.stderr)
+        raise
 
     # Confusion matrix
     im = inference.InferenceModel(trunk, embedder)
