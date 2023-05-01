@@ -1,0 +1,10 @@
+defaults:
+  - model: hd-gcn_com_21
+  - dataset: hd-gcn_bone_test
+  - tester: use_amp_false
+  - embedder: default
+  - mode: test
+hydra:
+  run:
+    dir: ./outputs/test_hd-gcn_bone_com_21_with_val
+num_train_labels: 90
