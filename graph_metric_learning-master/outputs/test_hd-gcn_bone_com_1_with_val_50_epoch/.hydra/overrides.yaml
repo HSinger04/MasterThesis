@@ -1,3 +1,0 @@
-- +mode.old_config=../train_hd-gcn_bone_com_1_with_val/.hydra/config.yaml
-- +mode.model_folder=../train_hd-gcn_bone_com_1_with_val/example_saved_models
-- mode.use_best=false
