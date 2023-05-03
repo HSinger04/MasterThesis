@@ -1,0 +1,119 @@
+model:
+  model_name: sttformer
+  pretrained: false
+  model_args:
+    len_parts: 6
+    num_frames: 120
+    num_joints: 25
+    num_classes: 120
+    num_heads: 3
+    kernel_size:
+    - 3
+    - 5
+    num_persons: 2
+    num_channels: 3
+    use_pes: true
+    config:
+    - - 64
+      - 64
+      - 16
+    - - 64
+      - 64
+      - 16
+    - - 64
+      - 128
+      - 32
+    - - 128
+      - 128
+      - 32
+    - - 128
+      - 256
+      - 64
+    - - 256
+      - 256
+      - 64
+    - - 256
+      - 256
+      - 64
+    - - 256
+      - 256
+      - 64
+dataset:
+  name: ntu120_oneshot_sttformer
+  data_path: ../../../../STTTFormer/gendata/ntu120/NTU120_one_shot/x_test_and_sample.npy
+  label_path: ../../../../STTTFormer/gendata/ntu120/NTU120_one_shot/y_test_and_sample.npy
+  name_path: ../../../../STTTFormer/gendata/ntu120/NTU120_one_shot/names_test_and_sample.npy
+  data_dir: /ntu/sttformer/
+  dataset_split:
+    val_classes:
+    - 1
+    - 7
+    - 13
+    - 19
+    - 25
+    - 31
+    - 37
+    - 43
+    - 49
+    - 55
+    - 61
+    - 67
+    - 73
+    - 79
+    - 85
+    - 91
+    - 97
+    - 103
+    - 109
+    - 115
+    mem_limits:
+      val_samples: 0
+      val: 0
+      train: 0
+  debug: false
+  data_kwargs:
+    val_samples:
+      split: test
+      debug: false
+      window_size: 120
+      p_interval:
+      - 0.95
+      vel: true
+      bone: false
+    val:
+      split: test
+      debug: false
+      window_size: 120
+      p_interval:
+      - 0.95
+      vel: true
+      bone: false
+    train:
+      random_choose: false
+      random_shift: false
+      random_move: false
+      window_size: 120
+      normalization: false
+      random_rot: true
+      p_interval:
+      - 0.5
+      - 1
+      vel: true
+      bone: false
+  data_loader:
+    batch_size: 16
+    num_workers: 4
+tester:
+  use_amp: false
+  batch_size: 16
+  dataloader_num_workers: 4
+  metric: precision_at_1
+embedder:
+  size: 128
+  class_out_size: 100
+mode:
+  type: test
+  use_best: true
+  old_config: /home/work/Downloads/train_sttformer_joint_motion_with_val/.hydra/config.yaml
+  model_folder: /home/work/Downloads/train_sttformer_joint_motion_with_val/example_saved_models
+num_train_labels: 90

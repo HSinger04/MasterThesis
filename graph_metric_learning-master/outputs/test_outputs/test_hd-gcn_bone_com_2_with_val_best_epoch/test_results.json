@@ -1,0 +1,1 @@
+{"test": {"accuracy": 0.5838089198900867, "silhouette_score": 0.14158748090267181, "adjusted_mutual_info_score": 0.5938972496677721, "normalized_mutual_info_score": 0.5952148022217537}}

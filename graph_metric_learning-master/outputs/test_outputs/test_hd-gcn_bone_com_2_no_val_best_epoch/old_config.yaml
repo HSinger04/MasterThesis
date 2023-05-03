@@ -1,0 +1,102 @@
+dataset:
+  data_dir: /ntu/sttformer/
+  data_kwargs:
+    train:
+      bone: true
+      debug: false
+      normalization: false
+      p_interval:
+      - 0.5
+      - 1
+      random_choose: false
+      random_move: false
+      random_rot: true
+      random_shift: false
+      split: train
+      window_size: 64
+    val:
+      bone: true
+      debug: false
+      p_interval:
+      - 0.95
+      split: test
+      window_size: 64
+    val_samples:
+      bone: true
+      debug: false
+      p_interval:
+      - 0.95
+      split: test
+      window_size: 64
+  data_path: ../../../STTTFormer/gendata/ntu120/NTU120_one_shot/x_train.npy
+  dataset_split:
+    mem_limits:
+      train: 0
+      val: 0
+      val_samples: 0
+    val_classes: []
+  debug: false
+  label_path: ../../../STTTFormer/gendata/ntu120/NTU120_one_shot/y_train.npy
+  name: ntu120_oneshot_hd-gcn
+  name_path: ../../../STTTFormer/gendata/ntu120/NTU120_one_shot/names_train.npy
+embedder:
+  class_out_size: 100
+  size: 128
+embedder_loss:
+  margin: 0.2
+  name: triplet_margin
+end_of_iteration_hook:
+  kwargs:
+    base_lr: 0.1
+    lr_ratio: 0.001
+    num_epochs: 50
+    warm_up_epoch: 5
+  model_folder: hd-gcn
+loss:
+  classifier_loss: 0.5
+  metric_loss: 0.5
+miner:
+  epsilon: 0.1
+  name: multi_similarity
+mode:
+  type: train_from_scratch
+model:
+  model_args:
+    graph: graph.ntu_rgb_d_hierarchy.Graph
+    graph_args:
+      CoM: 2
+      labeling_mode: spatial
+    num_class: 120
+    num_person: 2
+    num_point: 25
+  model_name: hd-gcn_bone_com_1
+optimizer:
+  optimizer:
+    lr: 0.1
+    momentum: 0.9
+    name: sgd
+    nesterov: true
+    weight_decay: 0.0004
+tester:
+  batch_size: 16
+  dataloader_num_workers: 4
+  metric: precision_at_1
+  use_amp: false
+trainer:
+  batch_size: 40
+  dataloader_num_workers: 4
+  iterations_per_epoch: null
+  num_epochs: 50
+  save_epochs:
+  - 37
+  use_amp: true
+transform:
+  transform_normalize: false
+  transform_random_affine: false
+  transform_random_horizontal_flip: false
+  transform_random_perspective: false
+  transform_random_resized_crop: false
+  transform_random_rotation: false
+  transform_random_shear: false
+  transform_resize: 256
+  transform_resize_match: false

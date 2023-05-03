@@ -1,0 +1,5 @@
+- mode.use_best=true
+- dataset=sttformer_bone_test
+- +mode.old_config=/home/work/Downloads/train_sttformer_bone_with_val/.hydra/config.yaml
+- +mode.model_folder=/home/work/Downloads/train_sttformer_bone_with_val/example_saved_models
+- num_train_labels=90

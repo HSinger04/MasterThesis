@@ -1,0 +1,143 @@
+dataset:
+  data_dir: /ntu/sttformer/
+  data_kwargs:
+    train:
+      bone: false
+      normalization: false
+      p_interval:
+      - 0.5
+      - 1
+      random_choose: false
+      random_move: false
+      random_rot: true
+      random_shift: false
+      vel: false
+      window_size: 120
+    val:
+      bone: false
+      debug: false
+      p_interval:
+      - 0.95
+      split: test
+      vel: false
+      window_size: 120
+    val_samples:
+      bone: false
+      debug: false
+      p_interval:
+      - 0.95
+      split: test
+      vel: false
+      window_size: 120
+  data_path: ../../../STTTFormer/gendata/ntu120/NTU120_one_shot/x_train.npy
+  dataset_split:
+    mem_limits:
+      train: 0
+      val: 0
+      val_samples: 0
+    val_classes:
+    - 2
+    - 14
+    - 26
+    - 38
+    - 50
+    - 62
+    - 74
+    - 86
+    - 98
+    - 110
+  debug: false
+  label_path: ../../../STTTFormer/gendata/ntu120/NTU120_one_shot/y_train.npy
+  name: ntu120_oneshot_sttformer
+  name_path: ../../../STTTFormer/gendata/ntu120/NTU120_one_shot/names_train.npy
+embedder:
+  class_out_size: 100
+  size: 128
+embedder_loss:
+  margin: 0.2
+  name: triplet_margin
+end_of_epoch_hook:
+  kwargs:
+    base_lr: 0.1
+    lr_decay_rate: 0.1
+    step:
+    - 60
+    - 80
+    warm_up_epoch: 5
+loss:
+  classifier_loss: 0.5
+  metric_loss: 0.5
+miner:
+  epsilon: 0.1
+  name: multi_similarity
+mode:
+  type: train_from_scratch
+model:
+  model_args:
+    config:
+    - - 64
+      - 64
+      - 16
+    - - 64
+      - 64
+      - 16
+    - - 64
+      - 128
+      - 32
+    - - 128
+      - 128
+      - 32
+    - - 128
+      - 256
+      - 64
+    - - 256
+      - 256
+      - 64
+    - - 256
+      - 256
+      - 64
+    - - 256
+      - 256
+      - 64
+    kernel_size:
+    - 3
+    - 5
+    len_parts: 6
+    num_channels: 3
+    num_classes: 120
+    num_frames: 120
+    num_heads: 3
+    num_joints: 25
+    num_persons: 2
+    use_pes: true
+  model_name: sttformer
+  pretrained: false
+optimizer:
+  optimizer:
+    lr: 0.1
+    momentum: 0.9
+    name: sgd
+    nesterov: true
+    weight_decay: 0.0005
+tester:
+  batch_size: 8
+  dataloader_num_workers: 4
+  metric: precision_at_1
+  use_amp: false
+trainer:
+  batch_size: 40
+  dataloader_num_workers: 4
+  iterations_per_epoch: null
+  num_epochs: 50
+  save_epochs: []
+  use_amp: false
+transform:
+  transform_normalize: false
+  transform_random_affine: false
+  transform_random_horizontal_flip: false
+  transform_random_perspective: false
+  transform_random_resized_crop: false
+  transform_random_rotation: false
+  transform_random_shear: false
+  transform_resize: 256
+  transform_resize_match: false

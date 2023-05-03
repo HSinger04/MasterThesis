@@ -1,0 +1,88 @@
+model:
+  model_name: hd-gcn_bone_com_1
+  model_args:
+    num_class: 120
+    num_point: 25
+    num_person: 2
+    graph: graph.ntu_rgb_d_hierarchy.Graph
+    graph_args:
+      labeling_mode: spatial
+      CoM: 2
+dataset:
+  name: ntu120_oneshot_hd-gcn_bone_com_1_with_val
+  data_path: ../../../STTTFormer/gendata/ntu120/NTU120_one_shot/x_test_and_sample.npy
+  label_path: ../../../STTTFormer/gendata/ntu120/NTU120_one_shot/y_test_and_sample.npy
+  name_path: ../../../STTTFormer/gendata/ntu120/NTU120_one_shot/names_test_and_sample.npy
+  data_dir: /ntu/hd-gcn_bone_com_1_with_val/
+  dataset_split:
+    val_classes:
+    - 1
+    - 7
+    - 13
+    - 19
+    - 25
+    - 31
+    - 37
+    - 43
+    - 49
+    - 55
+    - 61
+    - 67
+    - 73
+    - 79
+    - 85
+    - 91
+    - 97
+    - 103
+    - 109
+    - 115
+    mem_limits:
+      val_samples: 0
+      val: 0
+      train: 0
+  debug: false
+  data_kwargs:
+    val_samples:
+      split: test
+      window_size: 64
+      p_interval:
+      - 0.95
+      bone: true
+      debug: false
+    val:
+      split: test
+      window_size: 64
+      p_interval:
+      - 0.95
+      bone: true
+      debug: false
+    train:
+      split: train
+      debug: false
+      random_choose: false
+      random_shift: false
+      random_move: false
+      window_size: 64
+      normalization: false
+      random_rot: true
+      p_interval:
+      - 0.5
+      - 1
+      bone: true
+  data_loader:
+    batch_size: 16
+    num_workers: 4
+tester:
+  use_amp: false
+  batch_size: 16
+  dataloader_num_workers: 4
+  metric: precision_at_1
+embedder:
+  size: 128
+  class_out_size: 100
+mode:
+  type: test
+  use_best: true
+  old_config: /home/work/Downloads/train_hd-gcn_bone_com_2_no_val/.hydra/config.yaml
+  model_folder: /home/work/Downloads/train_hd-gcn_bone_com_2_no_val/example_saved_models
+num_train_labels: 100

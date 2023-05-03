@@ -1,0 +1,6 @@
+- mode.use_best=true
+- dataset=hd-gcn_bone_test
+- model=hd-gcn_com_1
+- +mode.old_config=/home/work/Downloads/train_hd-gcn_bone_com_1_no_val/.hydra/config.yaml
+- +mode.model_folder=/home/work/Downloads/train_hd-gcn_bone_com_1_no_val/example_saved_models
+- num_train_labels=100

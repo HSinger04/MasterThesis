@@ -1,0 +1,5 @@
+- mode.use_best=false
+- dataset=sttformer_joint_test
+- +mode.old_config=/home/work/Downloads/train_sttformer_joint_no_val/.hydra/config.yaml
+- +mode.model_folder=/home/work/Downloads/train_sttformer_joint_no_val/example_saved_models
+- num_train_labels=100
