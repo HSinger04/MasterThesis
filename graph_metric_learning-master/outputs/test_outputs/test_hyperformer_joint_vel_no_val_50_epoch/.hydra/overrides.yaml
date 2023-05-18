@@ -1,0 +1,5 @@
+- mode.use_best=false
+- dataset=hyperformer_joint_vel_test
+- +mode.old_config=/home/work/Downloads/train_hyperformer_joint_vel_no_val/.hydra/config.yaml
+- +mode.model_folder=/home/work/Downloads/train_hyperformer_joint_vel_no_val/example_saved_models
+- num_train_labels=100

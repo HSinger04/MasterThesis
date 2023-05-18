@@ -1,0 +1,7 @@
+- mode.use_best=false
+- dataset=hd-gcn_joint_test
+- model=hd-gcn_com_21
+- +mode.old_config=/home/work/Downloads/train_hd-gcn_joint_com_21_no_val/.hydra/config.yaml
+- +mode.model_folder=/home/work/Downloads/train_hd-gcn_joint_com_21_no_val/example_saved_models
+- +mode.load_epoch=100
+- num_train_labels=100
