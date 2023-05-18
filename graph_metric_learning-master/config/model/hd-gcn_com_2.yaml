@@ -1,4 +1,4 @@
-model_name: "hd-gcn_bone_com_1"
+model_name: "hd-gcn_com_2"
 model_args:
   num_class: 120
   num_point: 25

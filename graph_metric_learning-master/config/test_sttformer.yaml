@@ -7,4 +7,4 @@ defaults:
 hydra:
   run:
     dir: ./outputs/test_sttformer_joint
-num_train_labels: 90
+num_train_labels: 100

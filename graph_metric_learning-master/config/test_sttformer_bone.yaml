@@ -1,6 +1,6 @@
 defaults:
   - model: sttformer
-  - dataset: sttformer_test_bone
+  - dataset: sttformer_bone_test
   - tester: use_amp_false
   - embedder: default
   - mode: test

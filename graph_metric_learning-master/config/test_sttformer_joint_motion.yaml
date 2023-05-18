@@ -1,6 +1,6 @@
 defaults:
   - model: sttformer
-  - dataset: sttformer_test_joint_motion
+  - dataset: sttformer_joint_motion_test
   - tester: use_amp_false
   - embedder: default
   - mode: test
