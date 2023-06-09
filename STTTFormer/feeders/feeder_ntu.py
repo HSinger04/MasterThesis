@@ -3,10 +3,12 @@ from torch.utils.data import Dataset
 from . import tools
 import os.path as osp
 
+from MasterThesis.pyskl_main.pyskl.datasets.pipelines.sampling import UniformSampleDecode
+
 class Feeder(Dataset):
     def __init__(self, data_path, label_path=None, names_path=None, p_interval=1, split='train', random_choose=False, random_shift=False,
-                 random_move=False, random_rot=False, window_size=-1, normalization=False, debug=False, use_mmap=True,
-                 bone=False, vel=False, hyperformer=False):
+                 random_move=False, random_rot=False, window_size=-1, normalization=False, debug=False,
+                 uniform_sample_max_frames=0, use_mmap=True, bone=False, vel=False, model_name=""):
         """
         data_path:
         label_path:
@@ -38,13 +40,48 @@ class Feeder(Dataset):
         self.use_mmap = use_mmap
         self.p_interval = p_interval
         self.random_rot = random_rot
+        self.uniform_sample_max_frames = uniform_sample_max_frames
         self.bone = bone
         self.vel = vel
-        self.hyperformer = hyperformer
+        self.model_name = model_name.lower()
         self.load_data()
         if normalization:
             self.get_mean_map()
-    
+
+
+    def unpad(self, datum):
+        # Unpad frames
+        arg_found = (datum[::-1, :] != 0).argmax(axis=0)
+        assert arg_found.min() == arg_found.max()
+        arg_found = arg_found[0]
+        # arg_found is the frame after which only zero frames occur (in reversed order)
+        datum = datum[:datum.shape[0] - arg_found, :]
+
+        # Unpad joints
+        check_idx = (datum != 0).argmax(axis=0)[0]
+        if np.all(datum[check_idx, :75] == datum[check_idx, 75:]):
+            datum = datum[:, :75]
+
+        return datum
+
+    def dgstgcn_format(self, datum):
+        num_bods = 1
+        if datum.shape[1] == 150:
+            num_bods = 2
+        datum = datum.reshape(num_bods, -1, 25, 3)
+        return datum
+
+    def uniform_sample_decode(self, datum):
+        datum = self.unpad(datum)
+        datum = self.dgstgcn_format(datum)
+        datum = UniformSampleDecode._get_clips(datum, self.uniform_sample_max_frames)
+        # Reshape back to standard input format
+        datum.reshape(self.uniform_sample_max_frames, 75 * datum.shape[0])
+        # pad joints again
+        if datum.shape[1] == 75:
+            datum = np.hstack((datum, datum))
+        return datum
+
     def normalize_labels(self):
         """ Remap the labels to only go up to the number of unique labels to avoid bugs with e.g. CrossEntropyLoss. """
         label_to_new_labels = dict(zip(np.unique(self.label), np.array(range(len(np.unique(self.label))))))
@@ -101,7 +138,12 @@ class Feeder(Dataset):
         data_numpy = np.array(data_numpy)
         valid_frame_num = np.sum(data_numpy.sum(0).sum(-1).sum(-1) != 0)
         # reshape Tx(MVC) to CTVM
-        data_numpy = tools.valid_crop_resize(data_numpy, valid_frame_num, self.p_interval, self.window_size)
+        if self.uniform_sample_max_frames:
+            data_numpy = self.uniform_sample_decode(data_numpy)
+            # TODO: Remove
+            print(data_numpy.shape)
+        else:
+            data_numpy = tools.valid_crop_resize(data_numpy, valid_frame_num, self.p_interval, self.window_size)
         if self.random_rot:
             data_numpy = tools.random_rot(data_numpy)
         # TODO: Adjust bone and vel to also support mmap
@@ -118,7 +160,7 @@ class Feeder(Dataset):
         # Code from Hyperformer
         # for joint modality
         # separate trajectory from relative coordinate to each frame's spine center
-        if not self.bone and self.hyperformer:
+        if not self.bone and self.model_name == "hyperformer":
             # # there's a freedom to choose the direction of local coordinate axes!
             trajectory = data_numpy[:, :, 20]
             # let spine of each frame be the joint coordinate center
@@ -130,5 +172,8 @@ class Feeder(Dataset):
         if self.vel:
             data_numpy[:, :-1] = data_numpy[:, 1:] - data_numpy[:, :-1]
             data_numpy[:, -1] = 0
+
+        if self.model_name == "dgstgcn":
+            data_numpy = self.dgstgcn_format(data_numpy)
 
         return data_numpy, label#, index
