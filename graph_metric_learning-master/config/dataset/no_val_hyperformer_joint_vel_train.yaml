@@ -22,7 +22,7 @@ data_kwargs:
     p_interval: [0.95]
     vel: True
     bone: False
-    hyperformer: True
+    model_name: "hyperformer"
   val:
     split: test
     debug: False
@@ -30,7 +30,7 @@ data_kwargs:
     p_interval: [0.95]
     vel: True
     bone: False
-    hyperformer: True
+    model_name: "hyperformer"
   train:
     random_choose: False
     random_shift: False
@@ -41,5 +41,5 @@ data_kwargs:
     p_interval: [0.5, 1]
     vel: True
     bone: False
-    hyperformer: True
+    model_name: "hyperformer"
 

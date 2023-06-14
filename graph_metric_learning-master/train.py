@@ -9,6 +9,7 @@ import os.path as osp
 import omegaconf.errors
 
 sys.path.append(osp.dirname(osp.dirname(osp.dirname(__file__))))
+sys.path.append(osp.join(osp.dirname(osp.dirname(__file__)), "pyskl_main"))
 
 # The testing module requires faiss
 # So if you don't have that, then this import will break
@@ -42,6 +43,8 @@ from model import agcn, msg3d
 from MasterThesis.STTTFormer.model import sttformer
 from MasterThesis.HD_GCN_main.model import HDGCN
 from MasterThesis.Hyperformer.model import Hyperformer
+from MasterThesis.pyskl_main.pyskl.models.gcns.dgstgcn import DGSTGCN
+from MasterThesis.pyskl_main.pyskl.models.heads.simple_head import GCNHead
 from graph import ntu_rgb_d
 from feeders import feeder
 from trainer.with_autocast_train_with_classifier import WithAutocastTrainWithClassifier
@@ -58,6 +61,7 @@ HYPERFORMER = "hyperformer"
 STTFORMER = "sttformer"
 HD_GCN = "hd-gcn"
 MSG3D = "msg3d"
+DGSTGCN = "dgstgcn"
 
 class MLP(nn.Module):
     # layer_sizes[0] is the dimension of the input
@@ -144,7 +148,8 @@ def stt_and_hyperformer_hook(trainer, warm_up_epoch, base_lr, lr_decay_rate, ste
             raise ValueError()
 
 
-def get_end_of_epoch_hook(hooks, orig_end_of_epoch_hook, model_name, val_size, save_epochs, **kwargs):
+def get_end_of_epoch_hook(hooks, orig_end_of_epoch_hook, model_name, val_size, save_epochs, cfg,
+                          kwargs_from_other_configs, **kwargs):
 
     def dummy_hook(trainer):
         pass
@@ -152,6 +157,9 @@ def get_end_of_epoch_hook(hooks, orig_end_of_epoch_hook, model_name, val_size, s
     actual_hook_to_use = dummy_hook
     if STTFORMER in model_name or HYPERFORMER in model_name:
         actual_hook_to_use = stt_and_hyperformer_hook
+
+    for cfg_arg_to_hook_arg in kwargs_from_other_configs:
+        kwargs[cfg_arg_to_hook_arg[1]] = eval("cfg." + cfg_arg_to_hook_arg[0])
 
     custom_hook = partial(actual_hook_to_use, **kwargs)
 
@@ -181,7 +189,7 @@ def get_end_of_epoch_hook(hooks, orig_end_of_epoch_hook, model_name, val_size, s
     return true_hook
 
 
-def hd_gcn_hook(trainer, warm_up_epoch, base_lr, lr_ratio, num_epochs):
+def hd_gcn_and_dgstgcn_hook(trainer, warm_up_epoch, base_lr, lr_ratio, num_epochs):
     for optimizer in trainer.optimizers.values():
         if isinstance(optimizer, torch.optim.SGD) or isinstance(optimizer, torch.optim.Adam):
             epoch = 0
@@ -192,8 +200,6 @@ def hd_gcn_hook(trainer, warm_up_epoch, base_lr, lr_ratio, num_epochs):
             if epoch < warm_up_epoch:
                 new_lr = base_lr * (epoch + 1) / warm_up_epoch
             else:
-                # lr = self.arg.base_lr * (
-                #         self.arg.lr_decay_rate ** np.sum(epoch >= np.array(self.arg.step)))
                 T_max = len(trainer.dataloader) * (num_epochs - warm_up_epoch)
                 T_cur = len(trainer.dataloader) * (epoch - warm_up_epoch) + trainer.iteration
 
@@ -206,15 +212,18 @@ def hd_gcn_hook(trainer, warm_up_epoch, base_lr, lr_ratio, num_epochs):
             raise ValueError()
 
 
-def get_end_of_iteration_hook(hooks, orig_end_of_epoch_hook, model_name, **kwargs):
+def get_end_of_iteration_hook(hooks, orig_end_of_epoch_hook, model_name, cfg, kwargs_from_other_configs, **kwargs):
     from functools import partial
 
     def dummy_hook(trainer):
         pass
 
     actual_hook_to_use = dummy_hook
-    if HD_GCN in model_name:
-        actual_hook_to_use = hd_gcn_hook
+    if HD_GCN in model_name or DGSTGCN in model_name:
+        actual_hook_to_use = hd_gcn_and_dgstgcn_hook
+
+    for cfg_arg_to_hook_arg in kwargs_from_other_configs:
+        kwargs[cfg_arg_to_hook_arg[1]] = eval("cfg." + cfg_arg_to_hook_arg[0])
 
     custom_hook = partial(actual_hook_to_use, **kwargs)
 
@@ -244,6 +253,12 @@ def get_trunk(cfg):
         trunk_output_size = trunk.fc.in_features
 
         trunk.fc = nn.Identity()
+    elif DGSTGCN in cfg.model.model_name:
+        trunk = DGSTGCN(**cfg.model.model_args.dgstgcn_args)
+        head = GCNHead(**cfg.model.model_args.head_args)
+        trunk_output_size = head.in_c
+        head.fc_cls = nn.Identity()
+        trunk = torch.nn.Sqeuential(trunk, head)
     else:
         raise NotImplementedError("Unsupported model")
 
@@ -257,7 +272,7 @@ def train_app(cfg):
     # Set the datasets
     data_dir = cfg.dataset.data_dir
     print("Data dir: "+data_dir)
-
+    
     ds_mem_limits = cfg.dataset.dataset_split.mem_limits
     mem_limits = {"val_samples": ds_mem_limits.val_samples, "val": ds_mem_limits.val, "train": ds_mem_limits.train}
 
@@ -386,7 +401,15 @@ def train_app(cfg):
         epoch_hook_kwargs = cfg.end_of_epoch_hook.kwargs
     except omegaconf.errors.ConfigAttributeError:
         pass
-    end_of_epoch_hook = get_end_of_epoch_hook(hooks, orig_end_of_epoch_hook, cfg.model.model_name, len(val_dataset), cfg.trainer.save_epochs, **epoch_hook_kwargs)
+    epoch_hook_kwargs_from_other_configs = []
+    try:
+        epoch_hook_kwargs_from_other_configs = cfg.end_of_epoch_hook.kwargs_from_other_configs
+    except omegaconf.errors.ConfigAttributeError:
+        pass
+
+    end_of_epoch_hook = get_end_of_epoch_hook(hooks, orig_end_of_epoch_hook, cfg.model.model_name, len(val_dataset),
+                                              cfg.trainer.save_epochs, cfg, epoch_hook_kwargs_from_other_configs,
+                                              **epoch_hook_kwargs)
 
     # ... and end_of_iteration_hook
     orig_end_of_iteration_hook = hooks.end_of_iteration_hook
@@ -395,7 +418,13 @@ def train_app(cfg):
         iteration_hook_kwargs = cfg.end_of_iteration_hook.kwargs
     except omegaconf.errors.ConfigAttributeError:
         pass
-    end_of_iteration_hook = get_end_of_iteration_hook(hooks, orig_end_of_iteration_hook, cfg.model.model_name, **iteration_hook_kwargs)
+    iteration_hook_kwargs_from_other_configs = []
+    try:
+        iteration_hook_kwargs_from_other_configs = cfg.end_of_iteration_hook.kwargs_from_other_configs
+    except omegaconf.errors.ConfigAttributeError:
+        pass
+    end_of_iteration_hook = get_end_of_iteration_hook(hooks, orig_end_of_iteration_hook, cfg.model.model_name, cfg,
+                                                      iteration_hook_kwargs_from_other_configs, **iteration_hook_kwargs)
 
     # Training for metric learning
     trainer = WithAutocastTrainWithClassifier(cfg.trainer.use_amp, models=models,
@@ -428,17 +457,6 @@ def train_app(cfg):
                              '+mode.model_name=your_model_folder as a command-line argument.')
         if start_epoch == 1:
             raise ValueError("No latest model found in model_folder")
-
-    # Better not to do this before the training after all, since we would call the hook with the same parameters twice
-    # else:
-    #     if STTFORMER in cfg.model.model_name or HYPERFORMER in cfg.model.model_name:
-    #         assert cfg.end_of_epoch_hook.kwargs.base_lr == cfg.optimizer.optimizer.lr
-    #         stt_and_hyperformer_hook(trainer, **cfg.end_of_epoch_hook.kwargs)
-    #
-    #     elif HD_GCN in cfg.model.model_name:
-    #         assert cfg.end_of_iteration_hook.kwargs.base_lr == cfg.optimizer.optimizer.lr
-    #         assert cfg.end_of_iteration_hook.kwargs.num_epochs == cfg.trainer.num_epochs
-    #         hd_gcn_hook(trainer, **cfg.end_of_iteration_hook.kwargs)
 
     trainer.train(start_epoch=start_epoch, num_epochs=num_epochs)
 

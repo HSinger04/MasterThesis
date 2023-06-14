@@ -1,0 +1,8 @@
+decord>=0.6.0
+fvcore
+mmdet==2.23.0
+mmpose==0.24.0
+moviepy
+opencv-contrib-python
+opencv-python
+pymemcache

@@ -1,0 +1,10 @@
+kwargs:
+  lr_ratio: 0.0
+  warm_up_epoch: 0
+kwargs_from_other_configs:
+  - - "optimizer.optimizer.lr"
+    - "base_lr"
+  - - "trainer.num_epochs"
+    - "num_epochs"
+model_folder:
+  dgstgcn

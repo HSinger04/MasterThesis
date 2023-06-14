@@ -41,6 +41,8 @@ class Feeder(Dataset):
         self.p_interval = p_interval
         self.random_rot = random_rot
         self.uniform_sample_max_frames = uniform_sample_max_frames
+        if self.uniform_sample_max_frames:
+            self.uniform_sampler = UniformSampleDecode(self.uniform_sample_max_frames)
         self.bone = bone
         self.vel = vel
         self.model_name = model_name.lower()
@@ -51,35 +53,29 @@ class Feeder(Dataset):
 
     def unpad(self, datum):
         # Unpad frames
-        arg_found = (datum[::-1, :] != 0).argmax(axis=0)
-        assert arg_found.min() == arg_found.max()
-        arg_found = arg_found[0]
-        # arg_found is the frame after which only zero frames occur (in reversed order)
-        datum = datum[:datum.shape[0] - arg_found, :]
+        arg_found = (datum[:, ::-1, ::] != 0).argmax(axis=1)
+        arg_found = arg_found.min()
+        datum = datum[:, :datum.shape[1] - arg_found, :, :]
 
         # Unpad joints
-        check_idx = (datum != 0).argmax(axis=0)[0]
-        if np.all(datum[check_idx, :75] == datum[check_idx, 75:]):
-            datum = datum[:, :75]
+        check_idx = (datum != 0).argmax(axis=1).min()
+        if np.all(datum[:, check_idx, :, 0] == datum[:, check_idx, :, 1]):
+            datum = datum[:, :, :, 0]
+            datum = np.expand_dims(datum, -1)
 
-        return datum
-
-    def dgstgcn_format(self, datum):
-        num_bods = 1
-        if datum.shape[1] == 150:
-            num_bods = 2
-        datum = datum.reshape(num_bods, -1, 25, 3)
         return datum
 
     def uniform_sample_decode(self, datum):
         datum = self.unpad(datum)
-        datum = self.dgstgcn_format(datum)
-        datum = UniformSampleDecode._get_clips(datum, self.uniform_sample_max_frames)
+        datum = datum.transpose(3, 1, 2, 0)
+        if datum.shape[0] == 1:
+            datum = np.concatenate((datum, datum), axis=0)
+        datum = self.uniform_sampler._get_clips(datum, self.uniform_sample_max_frames)
         # Reshape back to standard input format
-        datum.reshape(self.uniform_sample_max_frames, 75 * datum.shape[0])
+        datum = datum.transpose(3, 1, 2, 0)
         # pad joints again
-        if datum.shape[1] == 75:
-            datum = np.hstack((datum, datum))
+        if datum.shape[0] == 1:
+            data_numpy = np.concatenate((datum, datum), axis=0)
         return datum
 
     def normalize_labels(self):
@@ -140,8 +136,6 @@ class Feeder(Dataset):
         # reshape Tx(MVC) to CTVM
         if self.uniform_sample_max_frames:
             data_numpy = self.uniform_sample_decode(data_numpy)
-            # TODO: Remove
-            print(data_numpy.shape)
         else:
             data_numpy = tools.valid_crop_resize(data_numpy, valid_frame_num, self.p_interval, self.window_size)
         if self.random_rot:
@@ -174,6 +168,6 @@ class Feeder(Dataset):
             data_numpy[:, -1] = 0
 
         if self.model_name == "dgstgcn":
-            data_numpy = self.dgstgcn_format(data_numpy)
+            data_numpy = data_numpy.transpose(3, 1, 2, 0)
 
         return data_numpy, label#, index

@@ -2,6 +2,8 @@ kwargs:
   lr_decay_rate: 0.1
   step: [ 60, 80 ]
   warm_up_epoch: 5
-  base_lr: 0.1
+kwargs_from_other_configs:
+  - - "optimizer.optimizer.lr"
+    - "base_lr"
 model_folder:
   sttformer

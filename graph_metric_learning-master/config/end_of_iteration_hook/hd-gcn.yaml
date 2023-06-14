@@ -1,7 +1,10 @@
 kwargs:
   lr_ratio: 0.001
   warm_up_epoch: 5
-  base_lr: 0.1
-  num_epochs: 50
+kwargs_from_other_configs:
+  - - "optimizer.optimizer.lr"
+    - "base_lr"
+  - - "trainer.num_epochs"
+    - "num_epochs"
 model_folder:
   hd-gcn
