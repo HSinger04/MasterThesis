@@ -3,6 +3,7 @@ import sys
 
 from tqdm import tqdm
 import json
+import os
 import yaml
 import torch
 import numpy as np
@@ -48,15 +49,12 @@ def visualizer_hook(umapper, umap_embeddings, labels, split_name, keyname, *args
 
 @hydra.main(config_path="config", version_base="1.1", )
 def main(cfg):
+
     # Dump the original config of the model that gets tested
     with open(cfg.mode.old_config, "r") as f:
         old_config = yaml.load(f, yaml.Loader)
         with open("old_config.yaml", "w") as out_file:
             yaml.dump(old_config, out_file)
-
-    # Set the datasets
-    data_dir = cfg.dataset.data_dir
-    print("Data dir: " + data_dir)
 
     ds_mem_limits = cfg.dataset.dataset_split.mem_limits
     mem_limits = {"val_samples": ds_mem_limits.val_samples, "val": ds_mem_limits.val, "train": ds_mem_limits.train}
@@ -80,12 +78,17 @@ def main(cfg):
     # Package the above stuff into dictionaries.
     models = {"trunk": trunk, "embedder": embedder, "classifier": classifier}
 
-    try:
-        epoch, model_suffix = c_f.latest_version(
-            cfg.mode.model_folder, "trunk_*.pth", best=cfg.mode.use_best)
-    except ValueError:
-        raise ValueError('If the mode config uses use_best: true, maybe there is no saved model with'
-              '"best" in the .pth files. If so, just add "best" before the epoch number')
+    if hasattr(cfg.mode, "load_epoch") and not cfg.mode.load_epoch == "best":
+        epoch = int(cfg.mode.load_epoch)
+        model_suffix = epoch
+
+    else:
+        try:
+            epoch, model_suffix = c_f.latest_version(
+                cfg.mode.model_folder, "trunk_*.pth", best=cfg.mode.use_best)
+        except ValueError:
+            raise ValueError('If the mode config uses use_best: true, maybe there is no saved model with'
+                  '"best" in the .pth files. If so, just add "best" before the epoch number')
 
     # Load model
     try:
@@ -189,4 +192,5 @@ def main(cfg):
 
 
 if __name__ == '__main__':
+    print(sys.argv)
     main()
