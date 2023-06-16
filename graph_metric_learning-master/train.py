@@ -43,7 +43,7 @@ from model import agcn, msg3d
 from MasterThesis.STTTFormer.model import sttformer
 from MasterThesis.HD_GCN_main.model import HDGCN
 from MasterThesis.Hyperformer.model import Hyperformer
-from MasterThesis.pyskl_main.pyskl.models.gcns.dgstgcn import DGSTGCN
+from MasterThesis.pyskl_main.pyskl.models.gcns import dgstgcn
 from MasterThesis.pyskl_main.pyskl.models.heads.simple_head import GCNHead
 from graph import ntu_rgb_d
 from feeders import feeder
@@ -88,9 +88,11 @@ class MLP(nn.Module):
 def get_datasets(model_name, data_path, label_path, name_path, val_classes, mem_limits={"val_samples": 0, "val": 0, "train": 0}, debug=False, data_kwargs={}):
 
     feeder_class = feeder.Feeder
-    if STTFORMER in model_name or HD_GCN in model_name or HYPERFORMER in model_name:
+    if STTFORMER in model_name or HD_GCN in model_name or HYPERFORMER in model_name or DGSTGCN in model_name:
         from MasterThesis.STTTFormer.feeders import feeder_ntu
         feeder_class = feeder_ntu.Feeder
+    else:
+        raise ValueError("Unknown model name!")
 
     val_sample_names = []
 
@@ -254,11 +256,13 @@ def get_trunk(cfg):
 
         trunk.fc = nn.Identity()
     elif DGSTGCN in cfg.model.model_name:
-        trunk = DGSTGCN(**cfg.model.model_args.dgstgcn_args)
+        cfg.model.model_args.dgstgcn_args.tcn_ms_cfg = [tuple(x) if isinstance(x, omegaconf.listconfig.ListConfig) else x for x in
+         cfg.model.model_args.dgstgcn_args.tcn_ms_cfg]
+        trunk = dgstgcn.DGSTGCN(**cfg.model.model_args.dgstgcn_args)
         head = GCNHead(**cfg.model.model_args.head_args)
         trunk_output_size = head.in_c
         head.fc_cls = nn.Identity()
-        trunk = torch.nn.Sqeuential(trunk, head)
+        trunk = torch.nn.Sequential(trunk, head)
     else:
         raise NotImplementedError("Unsupported model")
 

@@ -8,7 +8,8 @@ hydra-core
 tensorboard
 faiss-gpu
 pytest
+fvcore
 
-# For DG-STGCN
+# For DGSTGCN
 # pip install -U openmim
 # mim install mmcv-full==1.7.1 for now. Can also try to build correct version (1.5.0) from source
