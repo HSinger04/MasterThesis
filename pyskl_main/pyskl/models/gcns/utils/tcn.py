@@ -155,7 +155,7 @@ class dgmstcn(nn.Module):
             if cfg == '1x1':
                 branches.append(nn.Conv2d(in_channels, branch_c, kernel_size=1, stride=(stride, 1)))
                 continue
-            assert isinstance(cfg, tuple)
+            #assert isinstance(cfg, tuple)
             if cfg[0] == 'max':
                 branches.append(
                     nn.Sequential(
