@@ -8,7 +8,7 @@ from MasterThesis.pyskl_main.pyskl.datasets.pipelines.sampling import UniformSam
 class Feeder(Dataset):
     def __init__(self, data_path, label_path=None, names_path=None, p_interval=1, split='train', random_choose=False, random_shift=False,
                  random_move=False, random_rot=False, window_size=-1, normalization=False, debug=False,
-                 uniform_sample_max_frames=0, use_mmap=True, bone=False, vel=False, model_name=""):
+                 use_uniform_sample=False, use_mmap=True, bone=False, vel=False, model_name=""):
         """
         data_path:
         label_path:
@@ -40,9 +40,9 @@ class Feeder(Dataset):
         self.use_mmap = use_mmap
         self.p_interval = p_interval
         self.random_rot = random_rot
-        self.uniform_sample_max_frames = uniform_sample_max_frames
-        if self.uniform_sample_max_frames:
-            self.uniform_sampler = UniformSampleDecode(self.uniform_sample_max_frames)
+        self.use_uniform_sample = use_uniform_sample
+        if self.use_uniform_sample:
+            self.uniform_sampler = UniformSampleDecode(self.use_uniform_sample)
         self.bone = bone
         self.vel = vel
         self.model_name = model_name.lower()
@@ -70,9 +70,9 @@ class Feeder(Dataset):
         datum = datum.transpose(3, 1, 2, 0)
         if datum.shape[0] == 1:
             datum = np.concatenate((datum, datum), axis=0)
-        datum = self.uniform_sampler._get_clips(datum, self.uniform_sample_max_frames)
+        datum = self.uniform_sampler._get_clips(datum, self.window_size)
         # Reshape back to standard input format
-        datum = datum.transpose(3, 1, 2, 0)
+        datum = np.transpose(datum, (3, 1, 2, 0))
         # pad joints again
         if datum.shape[0] == 1:
             data_numpy = np.concatenate((datum, datum), axis=0)
@@ -134,7 +134,7 @@ class Feeder(Dataset):
         data_numpy = np.array(data_numpy)
         valid_frame_num = np.sum(data_numpy.sum(0).sum(-1).sum(-1) != 0)
         # reshape Tx(MVC) to CTVM
-        if self.uniform_sample_max_frames:
+        if self.use_uniform_sample:
             data_numpy = self.uniform_sample_decode(data_numpy)
         else:
             data_numpy = tools.valid_crop_resize(data_numpy, valid_frame_num, self.p_interval, self.window_size)
@@ -168,6 +168,6 @@ class Feeder(Dataset):
             data_numpy[:, -1] = 0
 
         if self.model_name == "dgstgcn":
-            data_numpy = data_numpy.transpose(3, 1, 2, 0)
+            data_numpy = np.transpose(data_numpy, (3, 1, 2, 0))
 
         return data_numpy, label#, index
