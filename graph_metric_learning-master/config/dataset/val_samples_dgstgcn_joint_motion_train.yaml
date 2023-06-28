@@ -1,0 +1,54 @@
+name: "ntu120_oneshot_dgstgcn"
+data_path: "../../../STTTFormer/gendata/ntu120/NTU120_one_shot/x_train.npy"
+label_path: "../../../STTTFormer/gendata/ntu120/NTU120_one_shot/y_train.npy"
+name_path: "../../../STTTFormer/gendata/ntu120/NTU120_one_shot/names_train.npy"
+data_dir: "/ntu/sttformer/"
+dataset_split:
+  val_classes:
+    - 2
+    - 14
+    - 26
+    - 38
+    - 50
+    - 62
+    - 74
+    - 86
+    - 98
+    - 110
+  mem_limits:
+    val_samples:
+      0
+    val:
+      0
+    train:
+      0
+debug:
+  false
+data_kwargs:
+  val_samples:
+    split: test
+    debug: False
+    window_size: 100
+    p_interval: [0.95]
+    vel: False
+    bone: False
+    model_name: "dgstgcn"
+  val:
+    split: test
+    debug: False
+    window_size: 100
+    p_interval: [0.95]
+    vel: False
+    bone: False
+    model_name: "dgstgcn"
+  train:
+    random_choose: False
+    random_shift: False
+    random_move: False
+    window_size: 100
+    normalization: False
+    random_rot: True
+    p_interval: [0.5, 1]
+    vel: False
+    bone: False
+    model_name: "dgstgcn"

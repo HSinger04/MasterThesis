@@ -1,0 +1,15 @@
+defaults:
+  - model: dgstgcn
+  - dataset: val_samples_dgstgcn_joint_train
+  - optimizer: dgstgcn
+  - miner: multi_similarity
+  - embedder_loss: triplet_margin
+  - trainer: dgstgcn_train_with_amp
+  - tester: dgstgcn_no_amp
+  - loss: default
+  - embedder: default
+  - transform: minimal
+  - end_of_iteration_hook: dgstgcn
+hydra:
+  run:
+    dir: ./outputs/train_dgstgcn_joint_with_val
