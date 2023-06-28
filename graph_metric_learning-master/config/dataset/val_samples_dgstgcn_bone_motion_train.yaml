@@ -30,7 +30,7 @@ data_kwargs:
     debug: False
     window_size: 100
     p_interval: [0.95]
-    vel: False
+    vel: True
     bone: True
     model_name: "dgstgcn"
   val:
@@ -38,7 +38,7 @@ data_kwargs:
     debug: False
     window_size: 100
     p_interval: [0.95]
-    vel: False
+    vel: True
     bone: True
     model_name: "dgstgcn"
   train:
@@ -49,6 +49,6 @@ data_kwargs:
     normalization: False
     random_rot: True
     p_interval: [0.5, 1]
-    vel: False
+    vel: True
     bone: True
     model_name: "dgstgcn"

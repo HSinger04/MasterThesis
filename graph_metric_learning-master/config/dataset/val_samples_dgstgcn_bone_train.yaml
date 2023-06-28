@@ -31,7 +31,7 @@ data_kwargs:
     window_size: 100
     p_interval: [0.95]
     vel: False
-    bone: False
+    bone: True
     model_name: "dgstgcn"
   val:
     split: test
@@ -39,7 +39,7 @@ data_kwargs:
     window_size: 100
     p_interval: [0.95]
     vel: False
-    bone: False
+    bone: True
     model_name: "dgstgcn"
   train:
     random_choose: False
@@ -50,5 +50,5 @@ data_kwargs:
     random_rot: True
     p_interval: [0.5, 1]
     vel: False
-    bone: False
+    bone: True
     model_name: "dgstgcn"
